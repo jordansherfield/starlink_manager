@@ -1,0 +1,49 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}Login - StarlinkOps{% endblock %}
+{% block header_title %}System Authentication{% endblock %}
+{% block header_subtitle %}Please sign in to access the client database{% endblock %}
+
+{% block content %}
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="glow-icon">
+                <i data-lucide="shield-check"></i>
+            </div>
+            <h2>Secure Log In</h2>
+            <p>Access control for Starlink monitoring systems</p>
+        </div>
+        
+        <form method="post" action="{% url 'login' %}" class="login-form">
+            {% csrf_token %}
+            
+            {% if form.errors %}
+            <div class="form-error">
+                <i data-lucide="alert-triangle"></i>
+                <span>Invalid credentials, please try again.</span>
+            </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="id_username">
+                    <i data-lucide="user"></i> Username
+                </label>
+                <input type="text" name="username" id="id_username" placeholder="Enter username" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label for="id_password">
+                    <i data-lucide="key-round"></i> Password
+                </label>
+                <input type="password" name="password" id="id_password" placeholder="Enter password" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block btn-glow">
+                <span>Unlock Console</span>
+                <i data-lucide="arrow-right"></i>
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

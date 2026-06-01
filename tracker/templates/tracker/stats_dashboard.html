@@ -1,0 +1,355 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Analytics Overview - StarlinkOps{% endblock %}
+{% block header_title %}System Analytics Console{% endblock %}
+{% block header_subtitle %}Financial summaries, terminal deployments status, and upcoming payment schedules{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Premium Stats Dashboard CSS */
+    .stats-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-metric-card {
+        background-color: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        transition: transform var(--transition-fast), border-color var(--transition-fast);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .stat-metric-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(168, 85, 247, 0.4);
+    }
+
+    .stat-icon-wrapper {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .stat-data {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .stat-label {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--color-text-primary);
+        margin-top: 0.15rem;
+    }
+
+    /* Financial metrics specifics */
+    .icon-cost { background-color: rgba(244, 63, 94, 0.12); color: var(--color-danger); }
+    .icon-income { background-color: rgba(16, 185, 129, 0.12); color: var(--color-success); }
+    .icon-profit { background-color: rgba(168, 85, 247, 0.12); color: var(--color-primary); }
+    .icon-terminals { background-color: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+
+    /* Operational Status Cards */
+    .status-distribution-panel {
+        background-color: var(--color-bg-panel);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .status-panel-header {
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .status-cards-deck {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+    }
+
+    .status-counter-card {
+        background-color: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 1.25rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .status-counter-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; height: 3px;
+    }
+
+    .status-card-running::before { background-color: #10b981; }
+    .status-card-to-install::before { background-color: #3b82f6; }
+    .status-card-deactivated::before { background-color: #9ca3af; }
+    .status-card-hardware-fault::before { background-color: #ef4444; }
+    .status-card-account-issue::before { background-color: #f59e0b; }
+
+    .status-card-count {
+        font-size: 1.75rem;
+        font-weight: 800;
+        margin-bottom: 0.25rem;
+    }
+
+    .status-card-running .status-card-count { color: #10b981; }
+    .status-card-to-install .status-card-count { color: #3b82f6; }
+    .status-card-deactivated .status-card-count { color: #9ca3af; }
+    .status-card-hardware-fault .status-card-count { color: #ef4444; }
+    .status-card-account-issue .status-card-count { color: #f59e0b; }
+
+    .status-card-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+    }
+
+    /* Billing schedule tables */
+    .schedule-panel {
+        background-color: var(--color-bg-panel);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .table-container {
+        overflow-x: auto;
+        margin-top: 1rem;
+    }
+
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.85rem;
+    }
+
+    .stats-table th {
+        background-color: var(--color-bg-base);
+        color: var(--color-text-secondary);
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .stats-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--color-border);
+        color: var(--color-text-primary);
+        vertical-align: middle;
+    }
+
+    .stats-table tr:hover {
+        background-color: rgba(26, 26, 35, 0.4);
+    }
+
+    .btn-table-action {
+        background-color: var(--color-success);
+        color: #fff;
+        border: none;
+        padding: 0.4rem 0.8rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        transition: background-color var(--transition-fast);
+    }
+
+    .btn-table-action:hover {
+        background-color: #059669;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+    }
+
+    .empty-billing-schedule {
+        padding: 3rem 1rem;
+        text-align: center;
+        color: var(--color-text-muted);
+    }
+
+    .empty-billing-schedule i {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        color: var(--color-success);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Section 1: Financial & General Counts Cards -->
+<div class="stats-summary-grid">
+    <div class="stat-metric-card">
+        <div class="stat-icon-wrapper icon-terminals">
+            <i data-lucide="satellite"></i>
+        </div>
+        <div class="stat-data">
+            <span class="stat-label">Total Terminals</span>
+            <span class="stat-value">{{ total_starlinks }}</span>
+        </div>
+    </div>
+    <div class="stat-metric-card">
+        <div class="stat-icon-wrapper icon-cost">
+            <i data-lucide="arrow-down-circle"></i>
+        </div>
+        <div class="stat-data">
+            <span class="stat-label">Cost</span>
+            <span class="stat-value">${{ total_cost|floatformat:2 }}</span>
+        </div>
+    </div>
+    <div class="stat-metric-card">
+        <div class="stat-icon-wrapper icon-income">
+            <i data-lucide="arrow-up-circle"></i>
+        </div>
+        <div class="stat-data">
+            <span class="stat-label">Client Invoice</span>
+            <span class="stat-value">${{ total_income|floatformat:2 }}</span>
+        </div>
+    </div>
+    <div class="stat-metric-card">
+        <div class="stat-icon-wrapper icon-profit">
+            <i data-lucide="activity"></i>
+        </div>
+        <div class="stat-data">
+            <span class="stat-label">Net Profit Margin</span>
+            <span class="stat-value" style="color: {% if total_profit >= 0 %}var(--color-success){% else %}var(--color-danger){% endif %};">
+                ${{ total_profit|floatformat:2 }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Section 2: Terminal Operational Status Breakdown -->
+<div class="status-distribution-panel">
+    <div class="status-panel-header">
+        <i data-lucide="radio" style="color:var(--color-primary);"></i>
+        <h3 style="font-size: 1rem; font-weight: 700;">Operational Status Distribution</h3>
+    </div>
+    <div class="status-cards-deck">
+        <div class="status-counter-card status-card-running">
+            <div class="status-card-count">{{ status_counts.Running|default:0 }}</div>
+            <div class="status-card-label">Running</div>
+        </div>
+        <div class="status-counter-card status-card-to-install">
+            <div class="status-card-count">{{ status_counts.To_install|default:0 }}</div>
+            <div class="status-card-label">To install</div>
+        </div>
+        <div class="status-counter-card status-card-deactivated">
+            <div class="status-card-count">{{ status_counts.Deactivated|default:0 }}</div>
+            <div class="status-card-label">Deactivated</div>
+        </div>
+        <div class="status-counter-card status-card-hardware-fault">
+            <div class="status-card-count">{{ status_counts.Hardware_fault|default:0 }}</div>
+            <div class="status-card-label">Hardware fault</div>
+        </div>
+        <div class="status-counter-card status-card-account-issue">
+            <div class="status-card-count">{{ status_counts.Account_issue|default:0 }}</div>
+            <div class="status-card-label">Account issue</div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 3: Upcoming Due Accounts (Next 7 Days) -->
+<div class="schedule-panel">
+    <div class="status-panel-header">
+        <i data-lucide="calendar-clock" style="color:var(--color-primary);"></i>
+        <h3 style="font-size: 1rem; font-weight: 700;">Billing Accounts Due (Next 7 Days)</h3>
+    </div>
+    
+    <div class="table-container">
+        {% if upcoming_due_accounts %}
+        <table class="stats-table">
+            <thead>
+                <tr>
+                    <th>Account Number</th>
+                    <th>Associated Client(s)</th>
+                    <th>Due Date</th>
+                    <th>Wholesale Cost</th>
+                    <th>Retail Invoice</th>
+                    <th>Estimated Profit</th>
+                    <th>Last Payment Date</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for acc in upcoming_due_accounts %}
+                <tr>
+                    <td><code>{{ acc.account_number }}</code></td>
+                    <td>
+                        {% if acc.associated_clients %}
+                            {% for c in acc.associated_clients %}
+                                <a href="{% url 'client_detail' c.id %}" style="color:var(--color-primary); text-decoration:none; border-bottom:1px dashed transparent;" onmouseover="this.style.borderColor='var(--color-primary)'" onmouseout="this.style.borderColor='transparent'">{{ c.name }}</a>{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <span style="color:var(--color-text-muted);">No Active Client</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge status-account-issue" style="font-size:0.75rem; padding: 0.15rem 0.5rem;">
+                            {{ acc.account_due_by|date:"M d, Y" }}
+                        </span>
+                    </td>
+                    <td>${{ acc.cost_to_us }}</td>
+                    <td>${{ acc.client_invoice }}</td>
+                    <td style="color: {% if acc.margin >= 0 %}var(--color-success){% else %}var(--color-danger){% endif %}; font-weight:600;">
+                        ${{ acc.margin }}
+                    </td>
+                    <td>{{ acc.last_payment_date|default:"None" }}</td>
+                    <td style="text-align: right;">
+                        <form action="{% url 'mark_account_paid' acc.id %}" method="post" style="display:inline-block;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-table-action">
+                                <i data-lucide="check-check" style="width:14px; height:14px; display:inline-block; vertical-align:middle;"></i>
+                                <span style="display:inline-block; vertical-align:middle;">Mark Paid</span>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-billing-schedule">
+            <i data-lucide="shield-check"></i>
+            <h3>No Accounts Due</h3>
+            <p>Excellent! All accounts have current payments, and no billing cycles end in the next 7 days.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Ensure Lucide icons load correctly
+    lucide.createIcons();
+</script>
+{% endblock %}

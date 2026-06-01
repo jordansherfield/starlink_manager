@@ -1,0 +1,149 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}System Audit Logs - StarlinkOps{% endblock %}
+{% block header_title %}System Change Tracking Console{% endblock %}
+{% block header_subtitle %}Complete audit trail of all terminal modifications, client associations, and wholesale billing changes{% endblock %}
+
+{% block content %}
+<div class="panel logs-panel" style="background-color: var(--color-bg-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
+    <!-- Filtering Controls -->
+    <form method="get" action="{% url 'audit_logs_page' %}" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1.5rem; background-color: var(--color-bg-card); padding: 1rem; border-radius: 8px; border: 1px solid var(--color-border);">
+        <div style="flex-grow: 1; min-width: 250px;">
+            <label for="log-search" style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Search Logs</label>
+            <input type="text" id="log-search" name="q" value="{{ query }}" placeholder="Search kit, admin, fields, description..." style="width: 100%; padding: 0.45rem 0.75rem; background-color: var(--color-bg-input); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary); font-size: 0.85rem; outline: none; border-color: var(--color-border);">
+        </div>
+        
+        <div style="width: 150px;">
+            <label for="filter-action" style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Action Type</label>
+            <select id="filter-action" name="action" style="width: 100%; padding: 0.45rem 0.75rem; background-color: var(--color-bg-input); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary); font-size: 0.85rem; cursor: pointer; outline: none;">
+                <option value="">-- All Actions --</option>
+                {% for act in actions_list %}
+                    <option value="{{ act }}" {% if action_filter == act %}selected{% endif %}>{{ act }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="width: 180px;">
+            <label for="filter-model" style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">Model Type</label>
+            <select id="filter-model" name="model" style="width: 100%; padding: 0.45rem 0.75rem; background-color: var(--color-bg-input); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary); font-size: 0.85rem; cursor: pointer; outline: none;">
+                <option value="">-- All Models --</option>
+                {% for mod in models_list %}
+                    <option value="{{ mod }}" {% if model_filter == mod %}selected{% endif %}>{{ mod }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; align-self: flex-end; margin-top: auto;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.45rem 1rem; font-size: 0.85rem;">
+                <i data-lucide="filter" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+                <span style="display: inline-block; vertical-align: middle;">Apply Filters</span>
+            </button>
+            {% if query or action_filter or model_filter %}
+                <a href="{% url 'audit_logs_page' %}" class="btn btn-secondary" style="padding: 0.45rem 1rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i>
+                    <span>Reset</span>
+                </a>
+            {% endif %}
+        </div>
+    </form>
+
+    <!-- Logs Listing -->
+    <div style="overflow-x: auto; background-color: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px;">
+        {% if page_obj %}
+        <table class="compact-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-secondary);">
+                    <th style="padding: 0.75rem 1rem; font-weight: 600;">Timestamp</th>
+                    <th style="padding: 0.75rem 1rem; font-weight: 600;">Admin User</th>
+                    <th style="padding: 0.75rem 1rem; font-weight: 600;">Action</th>
+                    <th style="padding: 0.75rem 1rem; font-weight: 600;">Target Object</th>
+                    <th style="padding: 0.75rem 1rem; font-weight: 600;">Kit Ref</th>
+                    <th style="padding: 0.75rem 1rem; font-weight: 600;">Changed Fields & Values</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in page_obj %}
+                <tr style="border-bottom: 1px solid var(--color-border); transition: background var(--transition-fast);" class="account-row-hover">
+                    <td style="padding: 0.75rem 1rem; white-space: nowrap; color: var(--color-text-muted);">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                    <td style="padding: 0.75rem 1rem;">
+                        <span style="display: flex; align-items: center; gap: 0.25rem;">
+                            <i data-lucide="user" style="width: 12px; height: 12px; color: var(--color-text-secondary);"></i>
+                            <strong>{{ log.user.username|default:"System" }}</strong>
+                        </span>
+                    </td>
+                    <td style="padding: 0.75rem 1rem;">
+                        <span class="status-badge {% if log.action == 'CREATE' %}status-running{% elif log.action == 'UPDATE' %}status-to-install{% else %}status-hardware-fault{% endif %}" style="font-size: 0.65rem; padding: 0.15rem 0.4rem; font-weight: 600; display: inline-block;">
+                            {{ log.action }}
+                        </span>
+                    </td>
+                    <td style="padding: 0.75rem 1rem;">
+                        <span style="color: var(--color-primary); font-weight: 600;">{{ log.model_name }}</span>: 
+                        <code style="background-color: rgba(168, 85, 247, 0.05); border: 1px solid rgba(168, 85, 247, 0.15); border-radius: 4px; padding: 0.1rem 0.25rem;">{{ log.object_repr }}</code>
+                    </td>
+                    <td style="padding: 0.75rem 1rem;">
+                        {% if log.kit_number %}
+                            <span class="kit-badge" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; white-space: nowrap;"><i data-lucide="cpu" style="width: 10px; height: 10px; display: inline-block; vertical-align: middle;"></i> {{ log.kit_number }}</span>
+                        {% else %}
+                            <span style="color: var(--color-text-muted); font-style: italic;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 0.75rem 1rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                            {% for field, values in log.changes.items %}
+                            <div style="font-size: 0.75rem;">
+                                <strong style="color: var(--color-text-primary);">{{ field }}</strong>: 
+                                {% if values.0 is not None %}<span style="color: var(--color-danger); text-decoration: line-through;">{{ values.0 }}</span>{% else %}<span style="color: var(--color-text-muted); font-style: italic;">None</span>{% endif %} 
+                                &rarr; 
+                                {% if values.1 is not None %}<span style="color: var(--color-success); font-weight: 500;">{{ values.1 }}</span>{% else %}<span style="color: var(--color-text-muted); font-style: italic;">None</span>{% endif %}
+                            </div>
+                            {% empty %}
+                            <span style="color: var(--color-text-muted); font-style: italic;">No detailed values updated.</span>
+                            {% endfor %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding: 3rem; text-align: center; color: var(--color-text-muted);">
+            <i data-lucide="shield-alert" style="width: 3rem; height: 3rem; margin-bottom: 1rem; color: var(--color-primary);"></i>
+            <h3>No Audit Logs Found</h3>
+            <p>Try resetting your search query or applying different action/model filters.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding: 0.5rem 1rem; background-color: var(--color-bg-card); border-radius: 8px; border: 1px solid var(--color-border);">
+        <span style="font-size: 0.8rem; color: var(--color-text-secondary);">
+            Showing logs <strong>{{ page_obj.start_index }}</strong> to <strong>{{ page_obj.end_index }}</strong> of <strong>{{ page_obj.paginator.count }}</strong> records
+        </span>
+        
+        <div style="display: flex; gap: 0.25rem;">
+            {% if page_obj.has_previous %}
+                <a href="?page=1{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Previous</a>
+            {% endif %}
+            
+            <span style="padding: 0.35rem 0.75rem; background: var(--color-primary); color: #fff; font-size: 0.75rem; border-radius: 4px; font-weight: 600;">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Last &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}
