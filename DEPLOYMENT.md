@@ -70,19 +70,19 @@ Once the application is created, cPanel will provide a command at the top to ent
 1. Open the cPanel **Terminal** tool (or SSH into your account) and paste that command to enter the environment.
 2. **Install Packages**:
    ```bash
-   pip install -r requirements.txt
+   requirements.txt
    ```
 3. **Execute database migrations**:
    ```bash
-   python manage.py migrate
+   manage.py migrate
    ```
 4. **Collect Static Assets**:
    ```bash
-   python manage.py collectstatic --noinput
+   manage.py collectstatic --noinput
    ```
 5. **Create your admin user**:
    ```bash
-   python manage.py createsuperuser
+   manage.py createsuperuser  --username admin
    ```
 
 ---
