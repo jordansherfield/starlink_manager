@@ -932,14 +932,14 @@
 
 <!-- Add Account Modal -->
 <div class="modal-overlay" id="addAccountModal">
-    <div class="modal-card" style="max-width: 600px; max-height: 90vh;">
+    <div class="modal-card" style="max-width: 600px; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="modal-header">
             <h3>Add Starlink Billing Account</h3>
             <button class="btn-close" onclick="closeModal('addAccountModal')"><i data-lucide="x"></i></button>
         </div>
-        <form action="{% url 'add_account' %}" method="post">
+        <form action="{% url 'add_account' %}" method="post" style="display: flex; flex-direction: column; min-height: 0; overflow: hidden; flex-grow: 1;">
             {% csrf_token %}
-            <div class="modal-body" style="padding-right: 0.75rem;">
+            <div class="modal-body" style="overflow-y: auto; flex-grow: 1; min-height: 0; padding-right: 0.75rem;">
                 <div class="form-group">
                     <label for="acc_num">Account Number *</label>
                     <input type="text" id="acc_num" name="account_number" required placeholder="e.g. ACC-2938120">
@@ -965,38 +965,98 @@
                     </div>
                 </div>
 
-                <!-- Credentials Toggle Header -->
+                <!-- Client Assignment Section (Direct Link) -->
                 <div class="form-group" style="margin-top: 1rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
+                    <label for="acc_client_select" style="font-weight: 700; color: var(--color-primary);">Assign / Link Client</label>
+                    <select id="acc_client_select" name="client_option">
+                        <option value="">-- Do not assign client --</option>
+                        <option value="new">Create New Client...</option>
+                        {% for client in all_clients_list %}
+                            <option value="{{ client.id }}">{{ client.name }} ({{ client.company }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- New Client Details Section -->
+                <div id="acc_new_client_fields" style="display: none; flex-direction: column; gap: 1rem; border: 1px dashed var(--color-primary); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.04); margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                    <div class="form-group">
+                        <label for="acc_client_name">Client Name *</label>
+                        <input type="text" id="acc_client_name" name="new_client_name" placeholder="e.g. Alpha Solutions Corp">
+                    </div>
+                    <div class="form-group">
+                        <label for="acc_client_company">Company Brand *</label>
+                        <select id="acc_client_company" name="new_client_company">
+                            <option value="Comnet">Comnet</option>
+                            <option value="Farbell">Farbell</option>
+                            <option value="Afrinet">Afrinet</option>
+                        </select>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="acc_client_email">Email</label>
+                            <input type="email" id="acc_client_email" name="new_client_email" placeholder="e.g. ops@alpha.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="acc_client_phone">Phone</label>
+                            <input type="text" id="acc_client_phone" name="new_client_phone" placeholder="e.g. +1 555-0199">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="acc_client_address">Physical Address</label>
+                        <textarea id="acc_client_address" name="new_client_address" placeholder="Client physical location address..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="acc_client_notes">Internal Notes</label>
+                        <textarea id="acc_client_notes" name="new_client_notes" placeholder="Secondary contact details, special SLA rules..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Credentials Toggle Header -->
+                <div class="form-group" style="margin-top: 0.5rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--color-primary); font-weight: 700;">
                         <input type="checkbox" name="add_credentials" id="acc_add_credentials" value="yes" style="cursor: pointer; width: auto; margin: 0;">
                         Add Login Credentials
                     </label>
                 </div>
 
-                <!-- Credentials Fields Container -->
-                <div id="acc_credentials_fields" style="display: none; flex-direction: column; gap: 1rem; border: 1px dashed var(--color-border); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.02); margin-bottom: 0.5rem;">
-                    <div class="form-group">
-                        <label for="acc_cred_label">Credential Label *</label>
-                        <input type="text" id="acc_cred_label" name="cred_label" value="Starlink Account Portal" placeholder="e.g. Router Admin, Support Portal">
-                    </div>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="acc_cred_username">Username *</label>
-                            <input type="text" id="acc_cred_username" name="cred_username" placeholder="Email or account username">
+                <!-- Credentials Fields Container (supports multiple logins) -->
+                <div id="acc_credentials_fields" style="display: none; flex-direction: column; gap: 1rem; margin-bottom: 0.5rem;">
+                    <div id="acc_credentials_list" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <!-- First Credential Block -->
+                        <div class="credential-block" style="border: 1px dashed var(--color-border); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.02); position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <h4 style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-secondary); margin: 0;">Login/Credentials #1</h4>
+                                <button type="button" class="btn-remove-cred" style="background: none; border: none; color: var(--color-danger); cursor: pointer; display: none; font-size: 0.75rem; align-items: center; gap: 0.25rem;">
+                                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Remove
+                                </button>
+                            </div>
+                            <div class="form-group">
+                                <label>Credential Label *</label>
+                                <input type="text" name="cred_label" value="Starlink Account Portal" placeholder="e.g. Router Admin, Support Portal">
+                            </div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Username *</label>
+                                    <input type="text" id="acc_cred_username" name="cred_username" placeholder="Email or account username">
+                                </div>
+                                <div class="form-group">
+                                    <label>Password *</label>
+                                    <input type="text" id="acc_cred_password" name="cred_password" placeholder="Password phrase">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Email Password</label>
+                                <input type="text" name="cred_email_pass" placeholder="Associated email account password">
+                            </div>
+                            <div class="form-group">
+                                <label>Account Notes</label>
+                                <textarea name="cred_notes" placeholder="Pin code, recovery details, security questions..."></textarea>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="acc_cred_password">Password *</label>
-                            <input type="text" id="acc_cred_password" name="cred_password" placeholder="Password phrase">
-                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="acc_cred_email_pass">Email Password</label>
-                        <input type="text" id="acc_cred_email_pass" name="cred_email_pass" placeholder="Associated email account password">
-                    </div>
-                    <div class="form-group">
-                        <label for="acc_cred_notes">Account Notes</label>
-                        <textarea id="acc_cred_notes" name="cred_notes" placeholder="Pin code, recovery details, security questions..."></textarea>
-                    </div>
+                    <button type="button" id="btn_add_another_cred" class="btn btn-secondary" style="border-color: var(--color-primary); display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; padding: 0.4rem 0.8rem; align-self: flex-start; margin-top: 0.5rem;">
+                        <i data-lucide="plus-circle" style="width: 14px; height: 14px; color: var(--color-primary);"></i> Add Another Login/Credential
+                    </button>
                 </div>
 
                 <!-- Starlink Device Toggle Header -->
@@ -1081,52 +1141,6 @@
                     <div class="form-group">
                         <label for="acc_sl_notes">Deployment Details</label>
                         <textarea id="acc_sl_notes" name="sl_notes" placeholder="Access codes, technician log, install date..."></textarea>
-                    </div>
-
-                    <!-- Client Assignment Section -->
-                    <div class="form-group" style="margin-top: 0.5rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
-                        <label for="acc_client_select" style="font-weight: 700; color: var(--color-primary);">Assign Client</label>
-                        <select id="acc_client_select" name="client_option">
-                            <option value="">-- Do not assign client --</option>
-                            <option value="new">Create New Client...</option>
-                            {% for client in all_clients_list %}
-                                <option value="{{ client.id }}">{{ client.name }} ({{ client.company }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- New Client Details Section -->
-                    <div id="acc_new_client_fields" style="display: none; flex-direction: column; gap: 1rem; border: 1px dashed var(--color-primary); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.04); margin-top: 0.5rem;">
-                        <div class="form-group">
-                            <label for="acc_client_name">Client Name *</label>
-                            <input type="text" id="acc_client_name" name="new_client_name" placeholder="e.g. Alpha Solutions Corp">
-                        </div>
-                        <div class="form-group">
-                            <label for="acc_client_company">Company Brand *</label>
-                            <select id="acc_client_company" name="new_client_company">
-                                <option value="Comnet">Comnet</option>
-                                <option value="Farbell">Farbell</option>
-                                <option value="Afrinet">Afrinet</option>
-                            </select>
-                        </div>
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="acc_client_email">Email</label>
-                                <input type="email" id="acc_client_email" name="new_client_email" placeholder="e.g. ops@alpha.com">
-                            </div>
-                            <div class="form-group">
-                                <label for="acc_client_phone">Phone</label>
-                                <input type="text" id="acc_client_phone" name="new_client_phone" placeholder="e.g. +1 555-0199">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="acc_client_address">Physical Address</label>
-                            <textarea id="acc_client_address" name="new_client_address" placeholder="Client physical location address..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="acc_client_notes">Internal Notes</label>
-                            <textarea id="acc_client_notes" name="new_client_notes" placeholder="Secondary contact details, special SLA rules..."></textarea>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1343,19 +1357,88 @@
         // Setup interactive toggling for the Add Account modal sections
         const accAddCredentials = document.getElementById('acc_add_credentials');
         const accCredentialsFields = document.getElementById('acc_credentials_fields');
-        const accCredUsername = document.getElementById('acc_cred_username');
-        const accCredPassword = document.getElementById('acc_cred_password');
+        const accCredentialsList = document.getElementById('acc_credentials_list');
+        const btnAddAnotherCred = document.getElementById('btn_add_another_cred');
 
         if (accAddCredentials) {
             accAddCredentials.addEventListener('change', function() {
-                if (this.checked) {
-                    accCredentialsFields.style.display = 'flex';
-                    accCredUsername.required = true;
-                    accCredPassword.required = true;
-                } else {
-                    accCredentialsFields.style.display = 'none';
-                    accCredUsername.required = false;
-                    accCredPassword.required = false;
+                const isChecked = this.checked;
+                accCredentialsFields.style.display = isChecked ? 'flex' : 'none';
+                
+                // Toggle required status on usernames and passwords
+                if (accCredentialsList) {
+                    accCredentialsList.querySelectorAll('.credential-block').forEach(block => {
+                        const uInput = block.querySelector('input[name="cred_username"]');
+                        const pInput = block.querySelector('input[name="cred_password"]');
+                        if (uInput && pInput) {
+                            uInput.required = isChecked;
+                            pInput.required = isChecked;
+                        }
+                    });
+                }
+            });
+        }
+
+        // Add Another Login/Credential block logic
+        if (btnAddAnotherCred && accCredentialsList) {
+            btnAddAnotherCred.addEventListener('click', function() {
+                const blocks = accCredentialsList.querySelectorAll('.credential-block');
+                const count = blocks.length + 1;
+                
+                // Clone the first block
+                const firstBlock = blocks[0];
+                const newBlock = firstBlock.cloneNode(true);
+                
+                // Update header title
+                const title = newBlock.querySelector('h4');
+                if (title) title.textContent = `Login/Credentials #${count}`;
+                
+                // Clear inputs and remove ids to avoid duplicates
+                newBlock.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+                newBlock.querySelectorAll('input, textarea').forEach(input => {
+                    if (input.name === 'cred_label') {
+                        input.value = "Starlink Account Portal";
+                    } else {
+                        input.value = "";
+                    }
+                });
+                
+                // Add click handler to the remove button
+                const removeBtn = newBlock.querySelector('.btn-remove-cred');
+                if (removeBtn) {
+                    removeBtn.style.display = 'inline-flex';
+                    removeBtn.onclick = function() {
+                        newBlock.remove();
+                        reindexCredentialBlocks();
+                    };
+                }
+                
+                accCredentialsList.appendChild(newBlock);
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            });
+        }
+
+        function reindexCredentialBlocks() {
+            if (!accCredentialsList) return;
+            accCredentialsList.querySelectorAll('.credential-block').forEach((block, idx) => {
+                const count = idx + 1;
+                const title = block.querySelector('h4');
+                if (title) title.textContent = `Login/Credentials #${count}`;
+                
+                const removeBtn = block.querySelector('.btn-remove-cred');
+                if (removeBtn) {
+                    if (idx === 0) {
+                        removeBtn.style.display = 'none';
+                        removeBtn.onclick = null;
+                    } else {
+                        removeBtn.style.display = 'inline-flex';
+                        removeBtn.onclick = function() {
+                            block.remove();
+                            reindexCredentialBlocks();
+                        };
+                    }
                 }
             });
         }
@@ -1369,7 +1452,7 @@
         const accClientName = document.getElementById('acc_client_name');
 
         function toggleNewClientFields() {
-            if (accAddStarlink && accAddStarlink.checked && accClientSelect && accClientSelect.value === 'new') {
+            if (accClientSelect && accClientSelect.value === 'new') {
                 if (accNewClientFields) accNewClientFields.style.display = 'flex';
                 if (accClientName) accClientName.required = true;
             } else {
@@ -1384,12 +1467,10 @@
                     accStarlinkFields.style.display = 'flex';
                     accSlKit.required = true;
                     accSlLocation.required = true;
-                    toggleNewClientFields();
                 } else {
                     accStarlinkFields.style.display = 'none';
                     accSlKit.required = false;
                     accSlLocation.required = false;
-                    if (accClientName) accClientName.required = false;
                 }
             });
         }

@@ -79,8 +79,12 @@ def dashboard(request):
                 
     for acc in accounts:
         acc.margin = acc.client_invoice - acc.cost_to_us
-        acc.clients_count = acc.starlinks.filter(client__isnull=False).values('client').distinct().count()
-        acc.associated_clients = Client.objects.filter(starlinks__account=acc).distinct()
+        # Combine direct client and client linked via starlinks
+        associated_clients = list(Client.objects.filter(starlinks__account=acc).distinct())
+        if acc.client and acc.client not in associated_clients:
+            associated_clients.append(acc.client)
+        acc.associated_clients = associated_clients
+        acc.clients_count = len(associated_clients)
 
     # Associate accounts and credentials directly onto clients for template use
     for client in clients:
@@ -241,8 +245,35 @@ def add_account(request):
                 # Make sure empty string dates map to None
                 if last_pay == "": last_pay = None
                 if due_by == "": due_by = None
+
+                # Process client selection/creation at the top level
+                client_option = request.POST.get('client_option')
+                client = None
+                
+                if client_option == 'new':
+                    new_client_name = request.POST.get('new_client_name')
+                    new_client_company = request.POST.get('new_client_company', 'Comnet')
+                    new_client_email = request.POST.get('new_client_email')
+                    new_client_phone = request.POST.get('new_client_phone')
+                    new_client_address = request.POST.get('new_client_address')
+                    new_client_notes = request.POST.get('new_client_notes')
+                    
+                    if not new_client_name:
+                        raise ValueError("Client name is required when creating a new client.")
+                        
+                    client = Client.objects.create(
+                        name=new_client_name,
+                        company=new_client_company if new_client_company else 'Comnet',
+                        email=new_client_email,
+                        phone=new_client_phone,
+                        address=new_client_address,
+                        notes=new_client_notes
+                    )
+                elif client_option:
+                    client = get_object_or_404(Client, id=client_option)
                 
                 account = StarlinkAccount.objects.create(
+                    client=client,
                     account_number=account_number,
                     last_payment_date=last_pay,
                     account_due_by=due_by,
@@ -250,29 +281,40 @@ def add_account(request):
                     client_invoice=client_invoice if client_invoice else 0.00
                 )
                 success_message = f"Starlink Account '{account_number}' created successfully."
+                if client:
+                    success_message += f" Linked to client '{client.name}'."
                 
-                # Handle Credentials Creation
+                # Handle Multiple Credentials Creation
                 if add_credentials:
-                    label = request.POST.get('cred_label', 'Starlink Account Portal')
-                    username = request.POST.get('cred_username')
-                    password = request.POST.get('cred_password')
-                    email_pass = request.POST.get('cred_email_pass')
-                    cred_notes = request.POST.get('cred_notes')
+                    labels = request.POST.getlist('cred_label')
+                    usernames = request.POST.getlist('cred_username')
+                    passwords = request.POST.getlist('cred_password')
+                    email_passes = request.POST.getlist('cred_email_pass')
+                    notes = request.POST.getlist('cred_notes')
                     
-                    if not username or not password:
-                        raise ValueError("Username and password are required for credentials.")
-                        
-                    Credential.objects.create(
-                        account=account,
-                        label=label if label else 'Starlink Account Portal',
-                        username=username,
-                        password=password,
-                        email_pass=email_pass,
-                        notes=cred_notes
-                    )
-                    success_message += " Credentials added."
+                    added_count = 0
+                    for i in range(len(usernames)):
+                        u = usernames[i].strip() if i < len(usernames) else ""
+                        p = passwords[i].strip() if i < len(passwords) else ""
+                        if u and p:
+                            l = labels[i].strip() if i < len(labels) else "Starlink Account"
+                            ep = email_passes[i].strip() if i < len(email_passes) else ""
+                            n = notes[i].strip() if i < len(notes) else ""
+                            
+                            Credential.objects.create(
+                                account=account,
+                                label=l if l else 'Starlink Account',
+                                username=u,
+                                password=p,
+                                email_pass=ep,
+                                notes=n
+                            )
+                            added_count += 1
+                    
+                    if added_count > 0:
+                        success_message += f" {added_count} Credentials added."
                 
-                # Handle Starlink Kit Creation
+                # Handle Starlink Kit Creation (linked to the same client)
                 if add_starlink:
                     kit_number = request.POST.get('sl_kit_number')
                     location_name = request.POST.get('sl_location_name')
@@ -291,34 +333,6 @@ def add_account(request):
                         
                     if StarlinkDevice.objects.filter(kit_number=kit_number).exists():
                         raise ValueError(f"Starlink Kit with number '{kit_number}' already exists.")
-                        
-                    # Handle Client Assignment options
-                    client_option = request.POST.get('client_option')
-                    client = None
-                    
-                    if client_option == 'new':
-                        new_client_name = request.POST.get('new_client_name')
-                        new_client_company = request.POST.get('new_client_company', 'Comnet')
-                        new_client_email = request.POST.get('new_client_email')
-                        new_client_phone = request.POST.get('new_client_phone')
-                        new_client_address = request.POST.get('new_client_address')
-                        new_client_notes = request.POST.get('new_client_notes')
-                        
-                        if not new_client_name:
-                            raise ValueError("Client name is required when creating a new client.")
-                            
-                        client = Client.objects.create(
-                            name=new_client_name,
-                            company=new_client_company if new_client_company else 'Comnet',
-                            email=new_client_email,
-                            phone=new_client_phone,
-                            address=new_client_address,
-                            notes=new_client_notes
-                        )
-                        success_message += f" New client '{new_client_name}' created."
-                    elif client_option:
-                        client = get_object_or_404(Client, id=client_option)
-                        success_message += f" Assigned to client '{client.name}'."
                         
                     lat_val = float(latitude) if latitude else None
                     lng_val = float(longitude) if longitude else None
@@ -434,15 +448,25 @@ def client_detail(request, pk):
                 'serial_number': sl.serial_number or 'None',
             })
             
-    # Unique accounts linked to client's devices
+    # Unique accounts linked directly and via client's devices
     associated_accounts = []
     seen_accs = set()
+    
+    # 1. Direct account links
+    for acc in client.accounts.all():
+        if acc.id not in seen_accs:
+            seen_accs.add(acc.id)
+            acc.margin = acc.client_invoice - acc.cost_to_us
+            associated_accounts.append(acc)
+            
+    # 2. Account links via devices
     for sl in client.starlinks.all():
         sl.email_history = AuditLog.objects.filter(kit_number=sl.kit_number).order_by('-timestamp')
         if sl.account and sl.account.id not in seen_accs:
             seen_accs.add(sl.account.id)
             sl.account.margin = sl.account.client_invoice - sl.account.cost_to_us
             associated_accounts.append(sl.account)
+            
     client.associated_accounts = associated_accounts
 
     context = {

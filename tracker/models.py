@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class StarlinkAccount(models.Model):
+    client = models.ForeignKey('Client', on_delete=models.SET_NULL, blank=True, null=True, related_name='accounts')
     account_number = models.CharField(max_length=100, unique=True)
     last_payment_date = models.DateField(blank=True, null=True)
     account_due_by = models.DateField(blank=True, null=True)
