@@ -82,7 +82,7 @@ Once the application is created, cPanel will provide a command at the top to ent
    ```
 5. **Create your admin user**:
    ```bash
-   manage.py createsuperuser  --username admin
+   manage.py createsuperuser  --username admin --email "you@domain.com" --noinput
    ```
 
 ---
