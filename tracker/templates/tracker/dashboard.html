@@ -514,7 +514,7 @@
                             <th>Wholesale Cost</th>
                             <th>Retail Invoice</th>
                             <th>Margin</th>
-                            <th>Linked</th>
+                            {% comment %} <th>Linked</th> {% endcomment %}
                             <th style="text-align:center;">Logins</th>
                             <th style="text-align:right;">Actions</th>
                         </tr>
@@ -544,9 +544,9 @@
                             <td style="font-weight:600; color: {% if acc.margin >= 0 %}var(--color-success){% else %}var(--color-danger){% endif %};">
                                 ${{ acc.margin|floatformat:2 }}
                             </td>
-                            <td style="font-size:0.75rem; color:var(--color-text-secondary); white-space: nowrap;">
+                            {% comment %} <td style="font-size:0.75rem; color:var(--color-text-secondary); white-space: nowrap;">
                                 {{ acc.clients_count }} Cli / {{ acc.starlinks.count }} U
-                            </td>
+                            </td> {% endcomment %}
                             <td style="text-align:center;">
                                 <button type="button" class="btn btn-secondary" onclick="toggleRowLogins('logins-row-{{ acc.id }}')" style="padding:0.2rem 0.4rem; font-size:0.7rem; display:inline-flex; align-items:center; gap:0.25rem;">
                                     <i data-lucide="key" style="width:12px; height:12px; color:var(--color-primary);"></i>
@@ -561,12 +561,12 @@
                                             <i data-lucide="check-square" style="width:14px; height:14px;"></i>
                                         </button>
                                     </form>
-                                    <form action="{% url 'delete_account' acc.id %}" method="post" class="inline-delete-form" style="margin:0;" onsubmit="return confirm('Are you sure you want to delete this billing account? All linked terminals and clients will be unlinked.');">
+                                    {% comment %} <form action="{% url 'delete_account' acc.id %}" method="post" class="inline-delete-form" style="margin:0;" onsubmit="return confirm('Are you sure you want to delete this billing account? All linked terminals and clients will be unlinked.');">
                                         {% csrf_token %}
                                         <button type="submit" class="btn-icon btn-icon-danger" title="Delete Account" style="width:26px; height:26px;">
                                             <i data-lucide="trash-2" style="width:14px; height:14px;"></i>
                                         </button>
-                                    </form>
+                                    </form> {% endcomment %}
                                 </div>
                             </td>
                         </tr>
