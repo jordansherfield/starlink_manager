@@ -136,3 +136,13 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
+# Fix OpenStreetMap tile server Referer policy blocks
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Enforce secure cookies in production (when running HTTPS)
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+
+
