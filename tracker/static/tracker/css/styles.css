@@ -940,34 +940,35 @@ body {
     height: 100%;
     width: 100%;
     z-index: 1;
-}
+    
+  }
 
 /* Dark mode styling rules for Leaflet map tiles */
-.leaflet-tile-container {
-    filter: invert(1) hue-rotate(180deg) brightness(0.6) contrast(1.2);
-}
+/* .leaflet-tile-pane {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+} */
 
-.leaflet-container {
+/* .leaflet-container {
     background: #08080a !important;
-}
+} */
 
 /* Custom leaflet control overlays */
-.leaflet-bar {
+/* .leaflet-bar {
     border: 1px solid var(--color-border) !important;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
-}
+} */
 
-.leaflet-bar a {
+/* .leaflet-bar a {
     background-color: var(--color-bg-card) !important;
     color: var(--color-text-primary) !important;
     border-bottom: 1px solid var(--color-border) !important;
     transition: var(--transition-fast);
-}
+} */
 
-.leaflet-bar a:hover {
+/* .leaflet-bar a:hover {
     background-color: var(--color-primary) !important;
     color: var(--color-text-primary) !important;
-}
+} */
 
 /* Custom Marker Styling (Pulse glow effect) */
 .custom-map-marker {
@@ -1682,6 +1683,104 @@ body {
     padding: 0.05rem 0.25rem;
     border-radius: 4px;
 }
+
+/* ==========================================
+   MAP LOCATION SEARCH OVERLAY
+   ========================================== */
+.map-search-container {
+    width: 280px;
+    max-width: calc(100vw - 2rem);
+    margin: 10px !important;
+}
+
+.map-search-box {
+    display: flex;
+    align-items: center;
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.25rem 0.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    transition: var(--transition-fast);
+}
+
+.map-search-box:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 10px var(--color-primary-glow), 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
+.map-search-box input {
+    flex-grow: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--color-text-primary);
+    padding: 0.4rem 0.5rem;
+    font-size: 0.85rem;
+    width: 100%;
+}
+
+.map-search-box button {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 0.4rem;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+}
+
+.map-search-box button:hover {
+    color: var(--color-primary);
+}
+
+.map-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 0.5rem;
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1001;
+}
+
+.map-search-result-item {
+    padding: 0.6rem 0.85rem;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border);
+    transition: var(--transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.map-search-result-item:last-child {
+    border-bottom: none;
+}
+
+.map-search-result-item:hover {
+    background-color: var(--color-bg-input);
+    color: var(--color-text-primary);
+}
+
+.map-search-no-results {
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
 
 
 

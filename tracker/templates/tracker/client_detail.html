@@ -716,7 +716,7 @@
                                 <label for="new_sl_account">Link Billing Account</label>
                                 <select id="new_sl_account" name="account_id">
                                     <option value="unlinked">-- Unlinked (No Account) --</option>
-                                    {% for acc in all_accounts_list %}
+                                    {% for acc in client.associated_accounts %}
                                         <option value="{{ acc.id }}">{{ acc.account_number }}</option>
                                     {% endfor %}
                                 </select>
@@ -856,15 +856,132 @@
             zoomControl: false
         }).setView(defaultCenter, defaultZoom);
         
-        // Add dark-mode themed tile layout
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Add Esri Satellite Base Layer
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 19,
-            attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }).addTo(map);
+
+        // Add Esri World Transportation (Roads) Overlay
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, NGA, USGS'
+        }).addTo(map);
+
+        // Add Esri World Boundaries and Places (Labels/Place Names) Overlay
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, NGA, USGS'
         }).addTo(map);
 
         L.control.zoom({
             position: 'bottomright'
         }).addTo(map);
+
+        // Location Search Control
+        const SearchControl = L.Control.extend({
+            options: {
+                position: 'topleft'
+            },
+            onAdd: function(map) {
+                const container = L.DomUtil.create('div', 'map-search-container');
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.disableScrollPropagation(container);
+                
+                container.innerHTML = `
+                    <div class="map-search-box">
+                        <input type="text" id="map-search-input" placeholder="Search location..." autocomplete="off">
+                        <button id="map-search-btn" type="button" title="Search">
+                            <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                    <div id="map-search-results" class="map-search-results" style="display: none;"></div>
+                `;
+                return container;
+            }
+        });
+        map.addControl(new SearchControl());
+
+        const searchInput = document.getElementById('map-search-input');
+        const searchBtn = document.getElementById('map-search-btn');
+        const searchResults = document.getElementById('map-search-results');
+
+        function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) {
+                searchResults.style.display = 'none';
+                return;
+            }
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`, {
+                headers: {
+                    'Accept-Language': 'en'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                searchResults.innerHTML = '';
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'map-search-result-item';
+                        div.textContent = item.display_name;
+                        div.title = item.display_name;
+                        div.addEventListener('click', () => {
+                            const lat = parseFloat(item.lat);
+                            const lon = parseFloat(item.lon);
+                            
+                            let zoomLevel = 13;
+                            if (item.type === 'country') zoomLevel = 5;
+                            else if (item.type === 'state') zoomLevel = 7;
+                            else if (item.type === 'city') zoomLevel = 10;
+                            
+                            map.flyTo([lat, lon], zoomLevel, {
+                                duration: 1.5
+                            });
+                            
+                            searchResults.style.display = 'none';
+                            searchInput.value = item.display_name;
+                        });
+                        searchResults.appendChild(div);
+                    });
+                } else {
+                    const div = document.createElement('div');
+                    div.className = 'map-search-no-results';
+                    div.textContent = 'No locations found';
+                    searchResults.appendChild(div);
+                }
+                searchResults.style.display = 'block';
+            })
+            .catch(err => {
+                console.error('Error fetching search results from Nominatim:', err);
+                searchResults.innerHTML = '<div class="map-search-no-results">Error performing search</div>';
+                searchResults.style.display = 'block';
+            });
+        }
+
+        searchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            performSearch();
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch();
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
 
         markersGroup = L.featureGroup().addTo(map);
         loadMarkers();
