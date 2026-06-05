@@ -948,31 +948,31 @@ body {
     filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 } */
 
-/* .leaflet-container {
+.leaflet-container {
     background: #08080a !important;
-} */
+}
 
 /* Custom leaflet control overlays */
-/* .leaflet-bar {
+.leaflet-bar {
     border: 1px solid var(--color-border) !important;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
-} */
+}
 
-/* .leaflet-bar a {
+.leaflet-bar a {
     background-color: var(--color-bg-card) !important;
     color: var(--color-text-primary) !important;
     border-bottom: 1px solid var(--color-border) !important;
     transition: var(--transition-fast);
-} */
+}
 
-/* .leaflet-bar a:hover {
+.leaflet-bar a:hover {
     background-color: var(--color-primary) !important;
     color: var(--color-text-primary) !important;
-} */
+}
 
 /* Custom Marker Styling (Pulse glow effect) */
 .custom-map-marker {
-    position: relative;
+    position: absolute !important;
 }
 
 .marker-core {

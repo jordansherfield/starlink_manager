@@ -310,7 +310,7 @@
                                 </div>
 
                                 <button type="submit" class="btn btn-primary" style="font-size:0.85rem; padding: 0.5rem 1rem;">
-                                    <i data-lucide="save"></i> Update Billing Rates
+                                    <i data-lucide="save"></i> Update Billing Details
                                 </button>
                             </form>
 
@@ -372,14 +372,14 @@
                                             <label for="cred_{{ cred.id }}_label">Credential Label</label>
                                             <input type="text" id="cred_{{ cred.id }}_label" name="label" value="{{ cred.label }}" required>
                                         </div>
-                                        <div class="form-group">
+                                        {% comment %} <div class="form-group">
                                             <label for="cred_{{ cred.id }}_transfer">Transfer / Reassign to Billing Account</label>
                                             <select id="cred_{{ cred.id }}_transfer" name="account_id">
                                                 {% for a in all_accounts_list %}
                                                     <option value="{{ a.id }}" {% if a.id == acc.id %}selected{% endif %}>{{ a.account_number }}</option>
                                                 {% endfor %}
                                             </select>
-                                        </div>
+                                        </div> {% endcomment %}
                                     </div>
 
                                     <div class="form-grid">
@@ -424,7 +424,7 @@
                                     </div>
 
                                     <button type="submit" class="btn btn-secondary" style="border-color: var(--color-primary);">
-                                        <i data-lucide="save"></i> Update Credential Details
+                                        <i data-lucide="save"></i> Update Credentials
                                     </button>
                                 </form>
                             </div>
@@ -478,7 +478,7 @@
                             </div>
 
                             <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
-                                <i data-lucide="plus"></i> Add Credential Record
+                                <i data-lucide="plus"></i> Add Credentials
                             </button>
                         </form>
                     </div>
