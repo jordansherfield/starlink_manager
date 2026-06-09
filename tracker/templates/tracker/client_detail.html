@@ -387,7 +387,7 @@
                                             <label for="cred_{{ cred.id }}_username">Username / Email *</label>
                                             <div style="display: flex; gap: 0.5rem;">
                                                 <input type="text" id="cred_{{ cred.id }}_username" name="username" value="{{ cred.username }}" required style="flex-grow: 1;">
-                                                <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText('{{ cred.username|escapejs }}'); alert('Username copied!')" title="Copy Username" style="padding: 0 0.75rem;">
+                                                <button type="button" class="btn btn-secondary" onclick="copyToClipboard('{{ cred.username|escapejs }}', 'Username copied!')" title="Copy Username" style="padding: 0 0.75rem;">
                                                     <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
                                                 </button>
                                             </div>
@@ -399,7 +399,7 @@
                                                 <button type="button" class="btn btn-secondaryToggle" onclick="togglePasswordVisibility('cred_{{ cred.id }}_password')" title="Toggle Visibility" style="padding: 0 0.75rem; border: 1px solid var(--color-border); background: var(--color-bg-input); border-radius: 4px; color: var(--color-text-secondary); cursor: pointer;">
                                                     <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText('{{ cred.password|escapejs }}'); alert('Password copied!')" title="Copy Password" style="padding: 0 0.75rem;">
+                                                <button type="button" class="btn btn-secondary" onclick="copyToClipboard('{{ cred.password|escapejs }}', 'Password copied!')" title="Copy Password" style="padding: 0 0.75rem;">
                                                     <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
                                                 </button>
                                             </div>
@@ -411,7 +411,7 @@
                                         <div style="display: flex; gap: 0.5rem;">
                                             <input type="text" id="cred_{{ cred.id }}_email_pass" name="email_pass" value="{{ cred.email_pass|default:'' }}" style="flex-grow: 1;">
                                             {% if cred.email_pass %}
-                                            <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText('{{ cred.email_pass|escapejs }}'); alert('Email Password copied!')" title="Copy Email Password" style="padding: 0 0.75rem;">
+                                            <button type="button" class="btn btn-secondary" onclick="copyToClipboard('{{ cred.email_pass|escapejs }}', 'Email Password copied!')" title="Copy Email Password" style="padding: 0 0.75rem;">
                                                 <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
                                             </button>
                                             {% endif %}

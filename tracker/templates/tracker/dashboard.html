@@ -116,12 +116,12 @@
                             <button class="btn-icon" onclick="openAddStarlinkModal({{ client.id }}, '{{ client.name|escapejs }}')" title="Add Starlink Device">
                                 <i data-lucide="satellite-dish"></i>
                             </button>
-                            <form action="{% url 'delete_client' client.id %}" method="post" class="inline-delete-form" onsubmit="return confirm('Are you sure you want to delete this client and all associated accounts/devices?');">
+                            {% comment %} <form action="{% url 'delete_client' client.id %}" method="post" class="inline-delete-form" onsubmit="return confirm('Are you sure you want to delete this client and all associated accounts/devices?');">
                                 {% csrf_token %}
                                 <button type="submit" class="btn-icon btn-icon-danger" title="Delete Client">
                                     <i data-lucide="trash-2"></i>
                                 </button>
-                            </form>
+                            </form> {% endcomment %}
                         </div>
                     </div>
 
@@ -1011,16 +1011,17 @@
                     </div>
                 </div>
 
-                <!-- Credentials Toggle Header -->
+                <!-- Credentials Header (Always Required) -->
+                <input type="hidden" name="add_credentials" value="yes">
                 <div class="form-group" style="margin-top: 0.5rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--color-primary); font-weight: 700;">
-                        <input type="checkbox" name="add_credentials" id="acc_add_credentials" value="yes" style="cursor: pointer; width: auto; margin: 0;">
-                        Add Login Credentials
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--color-primary); font-weight: 700;">
+                        <i data-lucide="lock" style="width: 16px; height: 16px;"></i>
+                        Login Credentials (Required)
                     </label>
                 </div>
 
                 <!-- Credentials Fields Container (supports multiple logins) -->
-                <div id="acc_credentials_fields" style="display: none; flex-direction: column; gap: 1rem; margin-bottom: 0.5rem;">
+                <div id="acc_credentials_fields" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 0.5rem;">
                     <div id="acc_credentials_list" style="display: flex; flex-direction: column; gap: 1rem;">
                         <!-- First Credential Block -->
                         <div class="credential-block" style="border: 1px dashed var(--color-border); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.02); position: relative;">
@@ -1032,16 +1033,16 @@
                             </div>
                             <div class="form-group">
                                 <label>Credential Label *</label>
-                                <input type="text" name="cred_label" value="Starlink Account Portal" placeholder="e.g. Router Admin, Support Portal">
+                                <input type="text" name="cred_label" value="Starlink Account Portal" placeholder="e.g. Router Admin, Support Portal" required>
                             </div>
                             <div class="form-grid">
                                 <div class="form-group">
                                     <label>Username *</label>
-                                    <input type="text" id="acc_cred_username" name="cred_username" placeholder="Email or account username">
+                                    <input type="text" id="acc_cred_username" name="cred_username" placeholder="Email or account username" required>
                                 </div>
                                 <div class="form-group">
                                     <label>Password *</label>
-                                    <input type="text" id="acc_cred_password" name="cred_password" placeholder="Password phrase">
+                                    <input type="text" id="acc_cred_password" name="cred_password" placeholder="Password phrase" required>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1174,7 +1175,7 @@
             }, 1500);
         }).catch(err => {
             console.error('Error copying text to clipboard: ', err);
-            alert('Failed to copy text. Please select and copy manually.');
+            showToast('Failed to copy text. Please copy manually.', 'info');
         });
     }
 
@@ -1474,29 +1475,8 @@
         });
 
         // Setup interactive toggling for the Add Account modal sections
-        const accAddCredentials = document.getElementById('acc_add_credentials');
-        const accCredentialsFields = document.getElementById('acc_credentials_fields');
         const accCredentialsList = document.getElementById('acc_credentials_list');
         const btnAddAnotherCred = document.getElementById('btn_add_another_cred');
-
-        if (accAddCredentials) {
-            accAddCredentials.addEventListener('change', function() {
-                const isChecked = this.checked;
-                accCredentialsFields.style.display = isChecked ? 'flex' : 'none';
-                
-                // Toggle required status on usernames and passwords
-                if (accCredentialsList) {
-                    accCredentialsList.querySelectorAll('.credential-block').forEach(block => {
-                        const uInput = block.querySelector('input[name="cred_username"]');
-                        const pInput = block.querySelector('input[name="cred_password"]');
-                        if (uInput && pInput) {
-                            uInput.required = isChecked;
-                            pInput.required = isChecked;
-                        }
-                    });
-                }
-            });
-        }
 
         // Add Another Login/Credential block logic
         if (btnAddAnotherCred && accCredentialsList) {
@@ -1520,6 +1500,7 @@
                     } else {
                         input.value = "";
                     }
+                    input.removeAttribute('required');
                 });
                 
                 // Add click handler to the remove button

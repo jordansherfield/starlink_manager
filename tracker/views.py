@@ -38,8 +38,11 @@ def dashboard(request):
         )
         
         accounts = accounts.filter(
-            Q(account_number__icontains=query)
-        )
+            Q(account_number__icontains=query) |
+            Q(client__name__icontains=query) |
+            Q(starlinks__client__name__icontains=query) |
+            Q(starlinks__kit_number__icontains=query)
+        ).distinct()
         
     # Serialize starlink devices for map visualization
     starlinks_data = []
@@ -230,6 +233,25 @@ def add_account(request):
         
         if not account_number:
             messages.error(request, "Account number is required.")
+            return redirect('dashboard')
+            
+        # Verify that at least one credential username and password is provided
+        if not add_credentials:
+            messages.error(request, "At least one login credential is required to create a billing account.")
+            return redirect('dashboard')
+            
+        usernames = request.POST.getlist('cred_username')
+        passwords = request.POST.getlist('cred_password')
+        has_credential = False
+        for i in range(len(usernames)):
+            u = usernames[i].strip() if i < len(usernames) else ""
+            p = passwords[i].strip() if i < len(passwords) else ""
+            if u and p:
+                has_credential = True
+                break
+                
+        if not has_credential:
+            messages.error(request, "At least one login credential (username and password) is required.")
             return redirect('dashboard')
             
         # Check uniqueness of account number beforehand
