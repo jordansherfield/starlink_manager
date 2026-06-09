@@ -184,12 +184,12 @@
                                                 {% endif %}
                                             </div>
                                             
-                                            <form action="{% url 'delete_credential' cred.id %}" method="post" class="inline-delete-form" onsubmit="return confirm('Delete this credential?');">
+                                            {% comment %} <form action="{% url 'delete_credential' cred.id %}" method="post" class="inline-delete-form" onsubmit="return confirm('Delete this credential?');">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn-item-delete" title="Delete Credential">
                                                     <i data-lucide="x"></i>
                                                 </button>
-                                            </form>
+                                            </form> {% endcomment %}
                                         </div>
                                         {% endfor %}
                                     </div>
