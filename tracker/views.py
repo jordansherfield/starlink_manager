@@ -692,3 +692,79 @@ def audit_logs_page(request):
     }
     return render(request, 'tracker/audit_logs.html', context)
 
+from tracker.middleware import set_audit_log_disabled
+from .undo_helper import revert_log_entry, redo_log_entry
+
+@login_required
+def undo_action(request):
+    undo_stack = request.session.get('undo_stack', [])
+    if not undo_stack:
+        messages.warning(request, "Nothing to undo.")
+        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+    log_ids = undo_stack.pop()
+    
+    try:
+        with transaction.atomic():
+            set_audit_log_disabled(True)
+            for log_id in reversed(log_ids):
+                try:
+                    log = AuditLog.objects.get(pk=log_id)
+                    revert_log_entry(log)
+                except AuditLog.DoesNotExist:
+                    pass
+            set_audit_log_disabled(False)
+            
+        redo_stack = request.session.get('redo_stack', [])
+        redo_stack.append(log_ids)
+        if len(redo_stack) > 20:
+            redo_stack.pop(0)
+            
+        request.session['undo_stack'] = undo_stack
+        request.session['redo_stack'] = redo_stack
+        request.session.modified = True
+        
+        messages.success(request, "Action undone successfully.")
+    except Exception as e:
+        set_audit_log_disabled(False)
+        messages.error(request, f"Failed to undo action: {str(e)}")
+        
+    return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+@login_required
+def redo_action(request):
+    redo_stack = request.session.get('redo_stack', [])
+    if not redo_stack:
+        messages.warning(request, "Nothing to redo.")
+        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+    log_ids = redo_stack.pop()
+    
+    try:
+        with transaction.atomic():
+            set_audit_log_disabled(True)
+            for log_id in log_ids:
+                try:
+                    log = AuditLog.objects.get(pk=log_id)
+                    redo_log_entry(log)
+                except AuditLog.DoesNotExist:
+                    pass
+            set_audit_log_disabled(False)
+            
+        undo_stack = request.session.get('undo_stack', [])
+        undo_stack.append(log_ids)
+        if len(undo_stack) > 20:
+            undo_stack.pop(0)
+            
+        request.session['undo_stack'] = undo_stack
+        request.session['redo_stack'] = redo_stack
+        request.session.modified = True
+        
+        messages.success(request, "Action redone successfully.")
+    except Exception as e:
+        set_audit_log_disabled(False)
+        messages.error(request, f"Failed to redo action: {str(e)}")
+        
+    return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+

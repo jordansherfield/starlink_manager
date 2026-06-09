@@ -137,7 +137,15 @@
                 
                 {% if user.is_authenticated %}
                 <!-- Topbar Actions -->
-                <div class="topbar-actions">
+                <div class="topbar-actions" style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="undo-redo-group" style="display: flex; gap: 0.35rem; margin-right: 0.5rem; border-right: 1px solid var(--color-border); padding-right: 0.75rem;">
+                        <a href="{% url 'undo_action' %}" class="btn btn-secondary {% if not request.session.undo_stack %}disabled{% endif %}" title="Undo last action" style="padding: 0.5rem; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 8px; {% if not request.session.undo_stack %}opacity: 0.35; cursor: not-allowed; pointer-events: none;{% endif %}" {% if not request.session.undo_stack %}onclick="event.preventDefault();"{% endif %}>
+                            <i data-lucide="undo" style="width: 18px; height: 18px;"></i>
+                        </a>
+                        <a href="{% url 'redo_action' %}" class="btn btn-secondary {% if not request.session.redo_stack %}disabled{% endif %}" title="Redo last action" style="padding: 0.5rem; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 8px; {% if not request.session.redo_stack %}opacity: 0.35; cursor: not-allowed; pointer-events: none;{% endif %}" {% if not request.session.redo_stack %}onclick="event.preventDefault();"{% endif %}>
+                            <i data-lucide="redo" style="width: 18px; height: 18px;"></i>
+                        </a>
+                    </div>
                     <button class="btn btn-secondary" onclick="openAddStarlinkModal('unassigned', 'Unassigned Hardware')">
                         <i data-lucide="satellite"></i>
                         <span>Add Unassigned Kit</span>
@@ -155,9 +163,14 @@
             <div class="messages-container">
                 {% for message in messages %}
                 <div class="alert alert-{{ message.tags }}">
-                    <div class="alert-content">
+                    <div class="alert-content" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                         <i data-lucide="info" class="alert-icon"></i>
                         <span>{{ message }}</span>
+                        {% if forloop.last and request.session.undo_stack and 'undone' not in message|lower and 'redone' not in message|lower %}
+                        <a href="{% url 'undo_action' %}" style="color: var(--color-primary); font-weight: 600; text-decoration: underline; margin-left: 0.5rem; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; transition: color var(--transition-fast);" onmouseover="this.style.color='var(--color-primary-hover)'" onmouseout="this.style.color='var(--color-primary)'">
+                            <i data-lucide="undo" style="width: 14px; height: 14px;"></i> Undo last action
+                        </a>
+                        {% endif %}
                     </div>
                     <button class="alert-close" onclick="this.parentElement.remove()">
                         <i data-lucide="x"></i>

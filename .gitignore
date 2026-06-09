@@ -7,3 +7,5 @@ __pycache__/
 .DS_Store
 staticfiles/
 
+Starlink Accounts - Main (1).csv
+tracker/__pycache__/*

@@ -5,7 +5,7 @@ from django.dispatch import receiver
 from django.db import models
 from django.contrib.auth.models import User
 from .models import Client, StarlinkAccount, Credential, StarlinkDevice, AuditLog
-from tracker.middleware import get_current_user
+from tracker.middleware import get_current_user, is_audit_log_disabled
 
 def serialize_value(val):
     if val is None:
@@ -28,6 +28,8 @@ def serialize_value(val):
 @receiver(pre_save, sender=Credential)
 @receiver(pre_save, sender=StarlinkDevice)
 def track_pre_save_changes(sender, instance, **kwargs):
+    if is_audit_log_disabled():
+        return
     if not instance.pk:
         # This is a creation, handled in post_save
         instance._pending_changes = None
@@ -61,6 +63,8 @@ def track_pre_save_changes(sender, instance, **kwargs):
 @receiver(post_save, sender=Credential)
 @receiver(post_save, sender=StarlinkDevice)
 def track_post_save_changes(sender, instance, created, **kwargs):
+    if is_audit_log_disabled():
+        return
     user = get_current_user()
     model_name = sender.__name__
     object_id = instance.pk
@@ -168,6 +172,8 @@ def track_post_save_changes(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=Credential)
 @receiver(post_delete, sender=StarlinkDevice)
 def track_post_delete(sender, instance, **kwargs):
+    if is_audit_log_disabled():
+        return
     user = get_current_user()
     model_name = sender.__name__
     object_id = instance.pk

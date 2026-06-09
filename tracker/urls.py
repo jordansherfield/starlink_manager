@@ -35,4 +35,8 @@ urlpatterns = [
     
     # Audit Logs
     path('logs/', views.audit_logs_page, name='audit_logs_page'),
+    
+    # Undo / Redo actions
+    path('undo/', views.undo_action, name='undo_action'),
+    path('redo/', views.redo_action, name='redo_action'),
 ]
