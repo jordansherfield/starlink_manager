@@ -1,0 +1,475 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Import Database - Starlink Client Tracker{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <h1 class="page-title">Database CSV Importer</h1>
+        <p class="page-subtitle">Map columns and bulk-import clients, billing accounts, credentials, and starlink devices.</p>
+    </div>
+</div>
+
+<div class="content-body" style="max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem;">
+    <!-- Step 1: File Upload & Skip Rows -->
+    <div class="panel" id="upload-panel">
+        <div class="panel-header">
+            <h3><i data-lucide="upload-cloud"></i> 1. Select CSV Spreadsheet File</h3>
+        </div>
+        <div class="panel-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+            <div id="drag-drop-zone" style="border: 2px dashed var(--color-border); border-radius: 8px; padding: 3rem 2rem; text-align: center; background-color: rgba(255, 255, 255, 0.02); transition: var(--transition-fast); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+                <i data-lucide="file-spreadsheet" style="width: 48px; height: 48px; color: var(--color-primary);"></i>
+                <div>
+                    <h4 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem;">Drag and drop your data file here</h4>
+                    <p style="color: var(--color-text-secondary); font-size: 0.85rem;">or click to browse local files (.csv files only)</p>
+                </div>
+                <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 1rem; border-top: 1px solid var(--color-border); padding-top: 1.25rem;">
+                <div class="form-group" style="width: 180px; margin-bottom: 0;">
+                    <label for="skip-rows-input" style="font-size: 0.8rem; margin-bottom: 0.35rem;">Header Rows to Skip</label>
+                    <input type="number" id="skip-rows-input" value="3" min="0" max="10" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; width: 100%;">
+                </div>
+                <p style="color: var(--color-text-muted); font-size: 0.775rem; line-height: 1.4; margin-top: 1rem;">
+                    For your sample file, we skip the first 3 rows (Row 0, 1, and 2 contain headers and notes). If you import a standard single-header CSV, set this to 1.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Columns Mapping Interface (hidden until file uploaded) -->
+    <form id="import-form" method="post" enctype="multipart/form-data" action="{% url 'import_data' %}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="mapping" id="mapping-json-input">
+        <input type="hidden" name="skip_rows" id="skip-rows-hidden">
+        <input type="file" name="csv_file" id="csv-file-hidden" style="display: none;">
+
+        <div class="panel">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3><i data-lucide="git-merge"></i> 2. Map CSV Columns to Database Fields</h3>
+                <button type="button" class="btn btn-secondary" onclick="resetFileSelector()" style="font-size: 0.775rem; padding: 0.35rem 0.75rem;"><i data-lucide="x"></i> Clear File</button>
+            </div>
+            
+            <div class="panel-body" style="display: flex; flex-direction: column; gap: 2rem;">
+                <!-- Column Preview Section -->
+                <div>
+                    <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.75rem;">Detected Columns & Sample Data Preview</h4>
+                    <div style="overflow-x: auto; border: 1px solid var(--color-border); border-radius: 6px;">
+                        <table class="table" id="preview-table" style="font-size: 0.775rem; margin-bottom: 0;">
+                            <thead>
+                                <tr id="preview-header-row">
+                                    <!-- Populated by JS -->
+                                </tr>
+                            </thead>
+                            <tbody id="preview-body-rows">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Mapping Grid -->
+                <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
+                    
+                    <!-- Client mapping -->
+                    <fieldset style="border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; background-color: rgba(255, 255, 255, 0.01);">
+                        <legend style="color: var(--color-primary); font-weight: 700; padding: 0 0.5rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem;">
+                            <i data-lucide="users" style="width: 16px; height: 16px;"></i> Client Fields
+                        </legend>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                            <div class="form-group">
+                                <label for="map-client-name">Client Name <span style="color: var(--color-danger)">*</span></label>
+                                <select id="map-client-name" data-field="client_name" required class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-client-company">Company Brand / Category</label>
+                                <select id="map-client-company" data-field="client_company" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-client-address">Address / GPS Coordinates</label>
+                                <select id="map-client-address" data-field="client_address" class="mapping-select"></select>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Starlink Device mapping -->
+                    <fieldset style="border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; background-color: rgba(255, 255, 255, 0.01);">
+                        <legend style="color: var(--color-primary); font-weight: 700; padding: 0 0.5rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem;">
+                            <i data-lucide="satellite" style="width: 16px; height: 16px;"></i> Starlink Device (Kit) Fields
+                        </legend>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                            <div class="form-group">
+                                <label for="map-kit-number">Kit Number (Unique ID)</label>
+                                <select id="map-kit-number" data-field="kit_number" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-location-name">Deployment Location Name</label>
+                                <select id="map-location-name" data-field="location_name" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-device-model">Starlink Dish Model</label>
+                                <select id="map-device-model" data-field="device_model" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-starlink-id">Starlink ID</label>
+                                <select id="map-starlink-id" data-field="starlink_id" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-serial-number">Dish Serial Number</label>
+                                <select id="map-serial-number" data-field="serial_number" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-device-status">Operational Status</label>
+                                <select id="map-device-status" data-field="device_status" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-wifi-name">WiFi SSID (Name)</label>
+                                <select id="map-wifi-name" data-field="wifi_name" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-wifi-password">WiFi Password</label>
+                                <select id="map-wifi-password" data-field="wifi_password" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-device-notes">Device Notes / Comments</label>
+                                <select id="map-device-notes" data-field="device_notes" class="mapping-select"></select>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Billing Account mapping -->
+                    <fieldset style="border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; background-color: rgba(255, 255, 255, 0.01);">
+                        <legend style="color: var(--color-primary); font-weight: 700; padding: 0 0.5rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem;">
+                            <i data-lucide="receipt" style="width: 16px; height: 16px;"></i> Billing Account Fields
+                        </legend>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                            <div class="form-group">
+                                <label for="map-account-number">Billing Account Number</label>
+                                <select id="map-account-number" data-field="account_number" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-due-date">Subscription Due Date</label>
+                                <select id="map-due-date" data-field="due_date" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-cost-to-us">Monthly Cost (To us)</label>
+                                <select id="map-cost-to-us" data-field="cost_to_us" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-client-invoice">Monthly Rate (Client Invoice)</label>
+                                <select id="map-client-invoice" data-field="client_invoice" class="mapping-select"></select>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Credentials mapping -->
+                    <fieldset style="border: 1px solid var(--color-border); border-radius: 8px; padding: 1.25rem; background-color: rgba(255, 255, 255, 0.01);">
+                        <legend style="color: var(--color-primary); font-weight: 700; padding: 0 0.5rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem;">
+                            <i data-lucide="lock" style="width: 16px; height: 16px;"></i> Starlink Portal Logins / Credentials
+                        </legend>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                            <div class="form-group">
+                                <label for="map-cred1-user">Sign-in / Login #1 Email</label>
+                                <select id="map-cred1-user" data-field="cred1_user" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-cred1-pass">Sign-in / Login #1 Password</label>
+                                <select id="map-cred1-pass" data-field="cred1_pass" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-cred2-user">Sign-in / Login #2 Email (Optional)</label>
+                                <select id="map-cred2-user" data-field="cred2_user" class="mapping-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="map-cred2-pass">Sign-in / Login #2 Password (Optional)</label>
+                                <select id="map-cred2-pass" data-field="cred2_pass" class="mapping-select"></select>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                </div>
+
+                <div style="border-top: 1px solid var(--color-border); padding-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="button" class="btn btn-secondary" onclick="resetFileSelector()">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i data-lucide="download"></i> Import Mapped Data</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    const dragDropZone = document.getElementById('drag-drop-zone');
+    const fileInput = document.getElementById('csv-file-input');
+    const skipRowsInput = document.getElementById('skip-rows-input');
+    const importForm = document.getElementById('import-form');
+    const uploadPanel = document.getElementById('upload-panel');
+
+    // File Selector trigger
+    dragDropZone.addEventListener('click', () => fileInput.click());
+
+    // Drag and Drop styling events
+    dragDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dragDropZone.style.borderColor = 'var(--color-primary)';
+        dragDropZone.style.backgroundColor = 'rgba(168, 85, 247, 0.05)';
+    });
+
+    dragDropZone.addEventListener('dragleave', () => {
+        dragDropZone.style.borderColor = 'var(--color-border)';
+        dragDropZone.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
+    });
+
+    dragDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragDropZone.style.borderColor = 'var(--color-border)';
+        dragDropZone.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
+        
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            handleFileSelection();
+        }
+    });
+
+    fileInput.addEventListener('change', handleFileSelection);
+
+    function resetFileSelector() {
+        fileInput.value = '';
+        document.getElementById('csv-file-hidden').value = '';
+        importForm.style.display = 'none';
+        uploadPanel.style.display = 'block';
+    }
+
+    // Parse CSV line correctly mapping items inside double quotes
+    function parseCSVRow(textRow) {
+        const result = [];
+        let insideQuote = false;
+        let entry = '';
+        for (let k = 0; k < textRow.length; k++) {
+            const char = textRow[k];
+            if (char === '"') {
+                insideQuote = !insideQuote;
+            } else if (char === ',' && !insideQuote) {
+                result.push(entry);
+                entry = '';
+            } else {
+                entry += char;
+            }
+        }
+        result.push(entry);
+        return result;
+    }
+
+    function handleFileSelection() {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const skipRows = parseInt(skipRowsInput.value) || 0;
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            const text = e.target.result;
+            const lines = text.split(/\r\n|\n/);
+            const csvRows = [];
+            
+            // Parse up to 8 rows for header detection and samples
+            let lineBuffer = '';
+            let rowsParsed = 0;
+            let insideQuote = false;
+            
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char === '"') {
+                    insideQuote = !insideQuote;
+                }
+                
+                if ((char === '\n' || char === '\r') && !insideQuote) {
+                    if (char === '\r' && text[i+1] === '\n') i++;
+                    csvRows.push(parseCSVRow(lineBuffer));
+                    lineBuffer = '';
+                    rowsParsed++;
+                    if (rowsParsed >= 8) break;
+                } else {
+                    lineBuffer += char;
+                }
+            }
+            if (lineBuffer && rowsParsed < 8) {
+                csvRows.push(parseCSVRow(lineBuffer));
+            }
+
+            if (csvRows.length === 0) {
+                alert('Uploaded CSV file is empty.');
+                return;
+            }
+
+            // Sync hidden files and inputs
+            document.getElementById('csv-file-hidden').files = fileInput.files;
+            document.getElementById('skip-rows-hidden').value = skipRows;
+
+            // Generate Options dropdown array list
+            generateMappingSelectors(csvRows, skipRows);
+
+            // Hide Upload and Show Mapping Panel
+            uploadPanel.style.display = 'none';
+            importForm.style.display = 'block';
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        };
+
+        reader.readAsText(file);
+    }
+
+    // Auto guesses columns based on name mappings
+    const autoMappingGuesses = {
+        client_name: [/client\s*account/i, /client\s*name/i, /client/i],
+        client_company: [/company/i, /brand/i, /category/i],
+        location_name: [/reference/i, /location/i, /nickname/i, /netconnect/i],
+        client_address: [/address/i, /coordinate/i, /gps/i],
+        device_status: [/status/i],
+        device_model: [/model/i, /dish\s*model/i],
+        account_number: [/account\s*number/i, /account\s*#/i, /billing\s*account/i, /acc/i],
+        starlink_id: [/starlink\s*id/i, /dish\s*id/i],
+        serial_number: [/serial/i],
+        kit_number: [/kit/i, /kit\s*number/i],
+        wifi_name: [/wifi\s*user/i, /wifi\s*ssid/i, /wifi\s*name/i, /wifi/i],
+        wifi_password: [/wifi\s*pass/i],
+        cred1_user: [/sign-in\s*user/i, /starlink\s*user/i, /logins/i],
+        cred1_pass: [/sign-in\s*pass/i, /starlink\s*pass/i],
+        cred2_user: [/email\s*user/i, /backup\s*user/i, /user\s*2/i],
+        cred2_pass: [/email\s*pass/i, /backup\s*pass/i, /pass\s*2/i],
+        due_date: [/due\s*by/i, /due\s*date/i],
+        cost_to_us: [/cost/i, /price/i],
+        client_invoice: [/invoice/i, /rate/i, /billing/i],
+        device_notes: [/notes/i, /comment/i]
+    };
+
+    function generateMappingSelectors(csvRows, skipRows) {
+        // Determine headers row. Usually headers are in the row just before data, or the first row.
+        // If skip_rows is 3, headers are likely in Row 1 or 2 (0-indexed).
+        let headerRow = [];
+        let sampleRow = [];
+        
+        // Find a suitable header row
+        if (skipRows > 1 && csvRows.length > skipRows - 1) {
+            // Merge rows up to skipRows into joined descriptive headers
+            const colCount = Math.max(...csvRows.map(r => r.length));
+            headerRow = Array(colCount).fill('');
+            for (let c = 0; c < colCount; c++) {
+                let parts = [];
+                for (let r = 0; r < skipRows; r++) {
+                    if (csvRows[r] && csvRows[r][c]) {
+                        parts.push(csvRows[r][c].trim());
+                    }
+                }
+                headerRow[c] = parts.join(' / ') || `Column ${c}`;
+            }
+        } else if (csvRows.length > 0) {
+            headerRow = csvRows[0];
+        }
+
+        // Find a suitable sample row (first row after skipRows)
+        if (csvRows.length > skipRows) {
+            sampleRow = csvRows[skipRows];
+        } else if (csvRows.length > 1) {
+            sampleRow = csvRows[1];
+        }
+
+        // 1. Populate Preview Table
+        const headerRowEl = document.getElementById('preview-header-row');
+        const bodyRowsEl = document.getElementById('preview-body-rows');
+        
+        headerRowEl.innerHTML = '';
+        bodyRowsEl.innerHTML = '';
+
+        // Render headers
+        headerRow.forEach((colName, index) => {
+            const th = document.createElement('th');
+            th.innerHTML = `<span style="color:var(--color-primary); display:block; font-size:0.7rem; font-weight:700;">Col ${index}</span> ${escapeHtml(colName)}`;
+            headerRowEl.appendChild(th);
+        });
+
+        // Render preview data (up to 3 sample rows)
+        const startRow = skipRows;
+        for (let r = startRow; r < Math.min(startRow + 3, csvRows.length); r++) {
+            const tr = document.createElement('tr');
+            headerRow.forEach((_, colIndex) => {
+                const td = document.createElement('td');
+                td.textContent = csvRows[r][colIndex] || '';
+                tr.appendChild(td);
+            });
+            bodyRowsEl.appendChild(tr);
+        }
+
+        // 2. Populate Dropdowns Selectors
+        const selectDropdowns = document.querySelectorAll('.mapping-select');
+        selectDropdowns.forEach(select => {
+            select.innerHTML = '';
+            
+            // Default "Do not import/map" option
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = '(Do not map)';
+            select.appendChild(defaultOpt);
+
+            // Add an option for each CSV column
+            headerRow.forEach((colName, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                const sampleText = sampleRow[index] ? ` (e.g. "${sampleRow[index]}")` : '';
+                opt.textContent = `Col ${index}: ${colName.substring(0, 40)}${colName.length > 40 ? '...' : ''}${sampleText}`;
+                select.appendChild(opt);
+            });
+
+            // Auto-guess the mapping
+            const fieldName = select.getAttribute('data-field');
+            const guesses = autoMappingGuesses[fieldName];
+            if (guesses) {
+                for (let index = 0; index < headerRow.length; index++) {
+                    const colName = headerRow[index];
+                    const matches = guesses.some(regex => regex.test(colName));
+                    if (matches) {
+                        select.value = index;
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Submit form JSON serialization
+    importForm.addEventListener('submit', function(e) {
+        const mapping = {};
+        const selectDropdowns = document.querySelectorAll('.mapping-select');
+        
+        selectDropdowns.forEach(select => {
+            const fieldName = select.getAttribute('data-field');
+            const val = select.value;
+            if (val !== '') {
+                mapping[fieldName] = parseInt(val);
+            }
+        });
+
+        // Validate required field client_name
+        if (mapping['client_name'] === undefined) {
+            e.preventDefault();
+            alert('Please map the Client Name field. It is required.');
+            return;
+        }
+
+        document.getElementById('mapping-json-input').value = JSON.stringify(mapping);
+    });
+</script>
+{% endblock %}

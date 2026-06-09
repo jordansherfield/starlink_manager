@@ -35,4 +35,7 @@ urlpatterns = [
     
     # Audit Logs
     path('logs/', views.audit_logs_page, name='audit_logs_page'),
+    
+    # CSV Data Import
+    path('import/', views.import_data, name='import_data'),
 ]

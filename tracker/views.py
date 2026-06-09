@@ -692,3 +692,46 @@ def audit_logs_page(request):
     }
     return render(request, 'tracker/audit_logs.html', context)
 
+import json
+from .import_helper import import_csv_with_mapping
+
+@login_required
+def import_data(request):
+    if request.method == 'POST':
+        csv_file = request.FILES.get('csv_file')
+        mapping_str = request.POST.get('mapping')
+        skip_rows_str = request.POST.get('skip_rows', '3')
+        
+        if not csv_file:
+            messages.error(request, "Please upload a CSV file.")
+            return redirect('import_data')
+            
+        if not mapping_str:
+            messages.error(request, "Invalid column mapping configurations.")
+            return redirect('import_data')
+            
+        try:
+            mapping = json.loads(mapping_str)
+            skip_rows = int(skip_rows_str)
+            
+            # Run the import logic
+            stats = import_csv_with_mapping(csv_file, mapping, skip_rows)
+            
+            # Format success message
+            success_msg = (
+                f"Import complete! Rows processed: {stats['rows_processed']}. "
+                f"Created {stats['clients_created']} clients, {stats['accounts_created']} billing accounts, "
+                f"{stats['devices_created']} devices, and {stats['credentials_created']} credentials. "
+                f"Updated {stats['clients_updated']} clients, {stats['accounts_updated']} billing accounts, "
+                f"and {stats['devices_updated']} devices."
+            )
+            messages.success(request, success_msg)
+            return redirect('dashboard')
+            
+        except Exception as e:
+            messages.error(request, f"Failed to import data: {str(e)}")
+            return redirect('import_data')
+            
+    return render(request, 'tracker/import_data.html')
+
+

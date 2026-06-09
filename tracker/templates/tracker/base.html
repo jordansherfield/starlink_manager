@@ -96,6 +96,10 @@
                     <i data-lucide="history"></i>
                     <span>Audit Logs</span>
                 </a>
+                <a href="{% url 'import_data' %}" class="nav-item {% if request.resolver_match.url_name == 'import_data' %}active{% endif %}">
+                    <i data-lucide="upload"></i>
+                    <span>Import Data</span>
+                </a>
                 <a href="/admin/" target="_blank" class="nav-item">
                     <i data-lucide="sliders"></i>
                     <span>Django Admin</span>
