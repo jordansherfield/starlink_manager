@@ -156,23 +156,23 @@
                                                 <div class="cred-field-group">
                                                     <div class="cred-field">
                                                         <span class="field-label">User:</span>
-                                                        <span class="field-value" id="user-{{ cred.id }}">{{ cred.username }}</span>
-                                                        <button class="btn-copy" onclick="copyText('user-{{ cred.id }}', this)" title="Copy Username">
+                                                        <span class="field-value">{{ cred.username }}</span>
+                                                        <button class="btn-copy" onclick="copyText('{{ cred.username|escapejs }}', this)" title="Copy Username">
                                                             <i data-lucide="copy"></i>
                                                         </button>
                                                     </div>
                                                     <div class="cred-field">
                                                         <span class="field-label">Pass:</span>
-                                                        <span class="field-value password-masked" id="pass-{{ cred.id }}">{{ cred.password }}</span>
-                                                        <button class="btn-copy" onclick="copyText('pass-{{ cred.id }}', this)" title="Copy Password">
+                                                        <span class="field-value password-masked">{{ cred.password }}</span>
+                                                        <button class="btn-copy" onclick="copyText('{{ cred.password|escapejs }}', this)" title="Copy Password">
                                                             <i data-lucide="copy"></i>
                                                         </button>
                                                     </div>
                                                     {% if cred.email_pass %}
                                                     <div class="cred-field">
                                                         <span class="field-label">Email Pass:</span>
-                                                        <span class="field-value password-masked" id="emailpass-{{ cred.id }}">{{ cred.email_pass }}</span>
-                                                        <button class="btn-copy" onclick="copyText('emailpass-{{ cred.id }}', this)" title="Copy Email Password">
+                                                        <span class="field-value password-masked">{{ cred.email_pass }}</span>
+                                                        <button class="btn-copy" onclick="copyText('{{ cred.email_pass|escapejs }}', this)" title="Copy Email Password">
                                                             <i data-lucide="copy"></i>
                                                         </button>
                                                     </div>
@@ -273,8 +273,8 @@
                                         <div class="detail-item">
                                             <span>Wi-Fi Password:</span>
                                             <span class="detail-item-value" style="display:flex; align-items:center; gap:0.25rem;">
-                                                <span id="wifi-pass-{{ sl.id }}">{{ sl.wifi_password }}</span>
-                                                <button class="btn-copy" onclick="copyText('wifi-pass-{{ sl.id }}', this)" title="Copy Wi-Fi Password" style="padding: 0.1rem; background:none; border:none; color:var(--color-text-muted); cursor:pointer;" type="button">
+                                                <span>{{ sl.wifi_password }}</span>
+                                                <button class="btn-copy" onclick="copyText('{{ sl.wifi_password|escapejs }}', this)" title="Copy Wi-Fi Password" style="padding: 0.1rem; background:none; border:none; color:var(--color-text-muted); cursor:pointer;" type="button">
                                                     <i data-lucide="copy" style="width:12px; height:12px;"></i>
                                                 </button>
                                             </span>
@@ -325,7 +325,7 @@
                                     <button class="btn-item-delete" style="color: var(--color-primary);" onclick="openTransferModal({{ sl.id }}, '{{ sl.kit_number|escapejs }}', {{ client.id }}, '{{ sl.status|escapejs }}', {% if sl.account %}{{ sl.account.id }}{% else %}''{% endif %})" title="Transfer Terminal" type="button">
                                         <i data-lucide="arrow-right-left"></i>
                                     </button>
-                                    <form action="{% url 'delete_starlink' sl.id %}" method="post" class="inline-delete-form" onsubmit="return confirm('Delete this Starlink device?');">
+                                    <form action="{% url 'delete_starlink' sl.id %}" method="post" class="inline-delete-form" onsubmit="return confirmDelete(this, 'Permanently delete Starlink kit \'{{ sl.kit_number|escapejs }}\' at {{ sl.location_name|escapejs }}? Its location, Wi-Fi, and history will be removed. You can Undo this right after.');">
                                         {% csrf_token %}
                                         <button type="submit" class="btn-item-delete" title="Delete Starlink">
                                             <i data-lucide="x"></i>
@@ -396,7 +396,7 @@
                                 <button class="btn-icon" onclick="openTransferModal({{ sl.id }}, '{{ sl.kit_number|escapejs }}', '', '{{ sl.status|escapejs }}', {% if sl.account %}{{ sl.account.id }}{% else %}''{% endif %})" title="Assign / Transfer Terminal">
                                     <i data-lucide="arrow-right-left"></i>
                                 </button>
-                                <form action="{% url 'delete_starlink' sl.id %}" method="post" class="inline-delete-form" onsubmit="return confirm('Delete this Starlink terminal?');">
+                                <form action="{% url 'delete_starlink' sl.id %}" method="post" class="inline-delete-form" onsubmit="return confirmDelete(this, 'Permanently delete Starlink kit \'{{ sl.kit_number|escapejs }}\' at {{ sl.location_name|escapejs }}? Its location, Wi-Fi, and history will be removed. You can Undo this right after.');">
                                     {% csrf_token %}
                                     <button type="submit" class="btn-icon btn-icon-danger" title="Delete Terminal">
                                         <i data-lucide="trash-2"></i>
@@ -428,8 +428,8 @@
                             <div class="detail-item">
                                 <span>Wi-Fi Password:</span>
                                 <span class="detail-item-value" style="display:flex; align-items:center; gap:0.25rem;">
-                                    <span id="wifi-pass-{{ sl.id }}">{{ sl.wifi_password }}</span>
-                                    <button class="btn-copy" onclick="copyText('wifi-pass-{{ sl.id }}', this)" title="Copy Wi-Fi Password" style="padding: 0.1rem; background:none; border:none; color:var(--color-text-muted); cursor:pointer;">
+                                    <span>{{ sl.wifi_password }}</span>
+                                    <button class="btn-copy" onclick="copyText('{{ sl.wifi_password|escapejs }}', this)" title="Copy Wi-Fi Password" style="padding: 0.1rem; background:none; border:none; color:var(--color-text-muted); cursor:pointer;">
                                         <i data-lucide="copy" style="width:12px; height:12px;"></i>
                                     </button>
                                 </span>
@@ -590,23 +590,23 @@
                                             <div style="display:flex; flex-direction:column; gap:0.15rem; font-size:0.7rem;">
                                                 <div style="display:flex; align-items:center; gap:0.25rem;">
                                                     <span style="color:var(--color-text-muted); width:35px;">User:</span>
-                                                    <span id="user-{{ cred.id }}">{{ cred.username }}</span>
-                                                    <button class="btn-copy" onclick="copyText('user-{{ cred.id }}', this)" title="Copy Username" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
+                                                    <span>{{ cred.username }}</span>
+                                                    <button class="btn-copy" onclick="copyText('{{ cred.username|escapejs }}', this)" title="Copy Username" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
                                                         <i data-lucide="copy" style="width:10px; height:10px;"></i>
                                                     </button>
                                                 </div>
                                                 <div style="display:flex; align-items:center; gap:0.25rem;">
                                                     <span style="color:var(--color-text-muted); width:35px;">Pass:</span>
-                                                    <span class="password-masked" id="pass-{{ cred.id }}">{{ cred.password }}</span>
-                                                    <button class="btn-copy" onclick="copyText('pass-{{ cred.id }}', this)" title="Copy Password" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
+                                                    <span class="password-masked">{{ cred.password }}</span>
+                                                    <button class="btn-copy" onclick="copyText('{{ cred.password|escapejs }}', this)" title="Copy Password" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
                                                         <i data-lucide="copy" style="width:10px; height:10px;"></i>
                                                     </button>
                                                 </div>
                                                 {% if cred.email_pass %}
                                                 <div style="display:flex; align-items:center; gap:0.25rem;">
                                                     <span style="color:var(--color-text-muted); width:35px;">Email P:</span>
-                                                    <span class="password-masked" id="emailpass-{{ cred.id }}">{{ cred.email_pass }}</span>
-                                                    <button class="btn-copy" onclick="copyText('emailpass-{{ cred.id }}', this)" title="Copy Email Password" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
+                                                    <span class="password-masked">{{ cred.email_pass }}</span>
+                                                    <button class="btn-copy" onclick="copyText('{{ cred.email_pass|escapejs }}', this)" title="Copy Email Password" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
                                                         <i data-lucide="copy" style="width:10px; height:10px;"></i>
                                                     </button>
                                                 </div>
@@ -616,7 +616,7 @@
                                                 <p style="font-size:0.65rem; color:var(--color-text-muted); margin-top:0.15rem; margin-bottom:0;">{{ cred.notes }}</p>
                                             {% endif %}
                                         </div>
-                                        <form action="{% url 'delete_credential' cred.id %}" method="post" class="inline-delete-form" onsubmit="return confirm('Delete this credential?');" style="margin:0;">
+                                        <form action="{% url 'delete_credential' cred.id %}" method="post" class="inline-delete-form" onsubmit="return confirmDelete(this, 'Permanently delete the \'{{ cred.label|escapejs }}\' login ({{ cred.username|escapejs }}) for account {{ acc.account_number|escapejs }}? You can Undo this right after.');" style="margin:0;">
                                             {% csrf_token %}
                                             <button type="submit" style="background:none; border:none; color:var(--color-text-muted); cursor:pointer; padding:0.25rem; display:flex; align-items:center;">
                                                 <i data-lucide="x" style="width:12px; height:12px;"></i>
@@ -932,7 +932,7 @@
 
 <!-- Add Account Modal -->
 <div class="modal-overlay" id="addAccountModal">
-    <div class="modal-card" style="max-width: 600px; max-height: 90vh; display: flex; flex-direction: column;">
+    <div class="modal-card modal-compact" style="max-width: 600px; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="modal-header">
             <h3>Add Starlink Billing Account</h3>
             <button class="btn-close" onclick="closeModal('addAccountModal')"><i data-lucide="x"></i></button>
@@ -966,7 +966,7 @@
                 </div>
 
                 <!-- Client Assignment Section (Direct Link) -->
-                <div class="form-group" style="margin-top: 1rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
+                <div class="form-group" style="margin-top: 0.5rem; border-top: 1px solid var(--color-border); padding-top: 0.6rem;">
                     <label for="acc_client_select" style="font-weight: 700; color: var(--color-primary);">Assign / Link Client</label>
                     <select id="acc_client_select" name="client_option">
                         <option value="">-- Do not assign client --</option>
@@ -978,7 +978,7 @@
                 </div>
 
                 <!-- New Client Details Section -->
-                <div id="acc_new_client_fields" style="display: none; flex-direction: column; gap: 1rem; border: 1px dashed var(--color-primary); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.04); margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                <div id="acc_new_client_fields" style="display: none; flex-direction: column; gap: 0.65rem; border: 1px dashed var(--color-primary); border-radius: 8px; padding: 0.65rem; background: rgba(168, 85, 247, 0.04); margin-top: 0.4rem; margin-bottom: 0.4rem;">
                     <div class="form-group">
                         <label for="acc_client_name">Client Name *</label>
                         <input type="text" id="acc_client_name" name="new_client_name" placeholder="e.g. Alpha Solutions Corp">
@@ -1013,7 +1013,7 @@
 
                 <!-- Credentials Header (Always Required) -->
                 <input type="hidden" name="add_credentials" value="yes">
-                <div class="form-group" style="margin-top: 0.5rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
+                <div class="form-group" style="margin-top: 0.4rem; border-top: 1px solid var(--color-border); padding-top: 0.6rem;">
                     <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--color-primary); font-weight: 700;">
                         <i data-lucide="lock" style="width: 16px; height: 16px;"></i>
                         Login Credentials (Required)
@@ -1021,10 +1021,10 @@
                 </div>
 
                 <!-- Credentials Fields Container (supports multiple logins) -->
-                <div id="acc_credentials_fields" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 0.5rem;">
-                    <div id="acc_credentials_list" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div id="acc_credentials_fields" style="display: flex; flex-direction: column; gap: 0.65rem; margin-bottom: 0.4rem;">
+                    <div id="acc_credentials_list" style="display: flex; flex-direction: column; gap: 0.65rem;">
                         <!-- First Credential Block -->
-                        <div class="credential-block" style="border: 1px dashed var(--color-border); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.02); position: relative;">
+                        <div class="credential-block" style="border: 1px dashed var(--color-border); border-radius: 8px; padding: 0.65rem; background: rgba(168, 85, 247, 0.02); position: relative;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                                 <h4 style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-secondary); margin: 0;">Login/Credentials #1</h4>
                                 <button type="button" class="btn-remove-cred" style="background: none; border: none; color: var(--color-danger); cursor: pointer; display: none; font-size: 0.75rem; align-items: center; gap: 0.25rem;">
@@ -1061,7 +1061,7 @@
                 </div>
 
                 <!-- Starlink Device Toggle Header -->
-                <div class="form-group" style="margin-top: 0.5rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
+                <div class="form-group" style="margin-top: 0.4rem; border-top: 1px solid var(--color-border); padding-top: 0.6rem;">
                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--color-primary); font-weight: 700;">
                         <input type="checkbox" name="add_starlink" id="acc_add_starlink" value="yes" style="cursor: pointer; width: auto; margin: 0;">
                         Add &amp; Map Starlink Terminal
@@ -1069,7 +1069,7 @@
                 </div>
 
                 <!-- Starlink Device Fields Container -->
-                <div id="acc_starlink_fields" style="display: none; flex-direction: column; gap: 1rem; border: 1px dashed var(--color-border); border-radius: 8px; padding: 1rem; background: rgba(168, 85, 247, 0.02); margin-bottom: 0.5rem;">
+                <div id="acc_starlink_fields" style="display: none; flex-direction: column; gap: 0.65rem; border: 1px dashed var(--color-border); border-radius: 8px; padding: 0.65rem; background: rgba(168, 85, 247, 0.02); margin-bottom: 0.4rem;">
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="acc_sl_model">Starlink Model</label>
@@ -1158,9 +1158,7 @@
 {% block extra_js %}
 <script>
     // Copy Username/Password to Clipboard
-    function copyText(elementId, buttonElement) {
-        const textToCopy = document.getElementById(elementId).innerText;
-        
+    function copyText(textToCopy, buttonElement) {
         navigator.clipboard.writeText(textToCopy).then(() => {
             // Success Feedback
             const originalHTML = buttonElement.innerHTML;
@@ -1181,21 +1179,23 @@
 
     // Modal Helper logic
     function openAddCredentialModal(accountId, accountName) {
+        document.getElementById('addCredentialModal').querySelector('form').reset();
         document.getElementById('cred_account_id').value = accountId;
         document.getElementById('cred_account_name').value = accountName;
         openModal('addCredentialModal');
     }
 
     function openAddStarlinkModal(clientId, clientName) {
+        document.getElementById('addStarlinkModal').querySelector('form').reset();
         document.getElementById('sl_client_id').value = clientId;
         document.getElementById('sl_client_name').value = clientName;
-        
+
         // Reset status for new kits to To install by default
         const statusField = document.getElementById('sl_status');
         if (statusField) {
             statusField.value = "To install";
         }
-        
+
         openModal('addStarlinkModal');
     }
 
@@ -1300,6 +1300,19 @@
         const savedTab = localStorage.getItem(window.location.pathname + '_activeTab');
         if (savedTab) {
             switchTab(savedTab);
+        }
+
+        // Auto-open a modal when arriving here via the topbar's "Add New Client" /
+        // "Add Unassigned Kit" buttons from another page (see goToDashboardAndOpen in base.html).
+        const openParam = new URLSearchParams(window.location.search).get('open');
+        if (openParam === 'client') {
+            openModal('addClientModal');
+        } else if (openParam === 'starlink') {
+            openAddStarlinkModal('unassigned', 'Unassigned Hardware');
+        }
+        if (openParam) {
+            const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]open=[^&]*/, '').replace(/^&/, '?');
+            history.replaceState(null, '', cleanUrl);
         }
 
         // Initialize Map

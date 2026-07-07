@@ -9,3 +9,5 @@ staticfiles/
 
 Starlink Accounts - Main (1).csv
 tracker/__pycache__/*
+sample.csv
+.~lock.*#

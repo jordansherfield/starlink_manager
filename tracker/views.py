@@ -4,14 +4,17 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse
+from django.views.decorators.http import require_POST
 from .models import StarlinkAccount, Client, Credential, StarlinkDevice, AuditLog
+from .csv_import import run_import, export_csv
 
 @login_required
 def dashboard(request):
     query = request.GET.get('q', '').strip()
     
     # Base querysets
-    clients = Client.objects.prefetch_related('starlinks__account__credentials')
+    clients = Client.objects.prefetch_related('starlinks__account__credentials', 'accounts__credentials')
     unassigned_starlinks = StarlinkDevice.objects.filter(client__isnull=True).select_related('account')
     accounts = StarlinkAccount.objects.prefetch_related('credentials', 'starlinks__client')
     
@@ -41,7 +44,9 @@ def dashboard(request):
             Q(account_number__icontains=query) |
             Q(client__name__icontains=query) |
             Q(starlinks__client__name__icontains=query) |
-            Q(starlinks__kit_number__icontains=query)
+            Q(starlinks__kit_number__icontains=query) |
+            Q(credentials__username__icontains=query) |
+            Q(credentials__label__icontains=query)
         ).distinct()
         
     # Serialize starlink devices for map visualization
@@ -93,6 +98,14 @@ def dashboard(request):
     for client in clients:
         associated_accounts = []
         seen_accs = set()
+
+        # Direct account links (assigned via the account's own "Link Client" field)
+        for acc in client.accounts.all():
+            if acc.id not in seen_accs:
+                seen_accs.add(acc.id)
+                associated_accounts.append(acc)
+
+        # Account links via the client's hardware devices
         for sl in client.starlinks.all():
             sl.email_history = AuditLog.objects.filter(kit_number=sl.kit_number).order_by('-timestamp')
             if sl.account and sl.account.id not in seen_accs:
@@ -714,10 +727,109 @@ def audit_logs_page(request):
     }
     return render(request, 'tracker/audit_logs.html', context)
 
+SESSION_IMPORT_TEXT = 'pending_import_csv_text'
+SESSION_IMPORT_FILENAME = 'pending_import_filename'
+
+
+@login_required
+def import_export_page(request):
+    pending_filename = request.session.get(SESSION_IMPORT_FILENAME)
+    preview = None
+
+    if pending_filename:
+        csv_text = request.session.get(SESSION_IMPORT_TEXT, '')
+        try:
+            preview = run_import(csv_text, commit=False)
+        except ValueError as e:
+            messages.error(request, f"Could not re-parse pending import: {e}")
+            request.session.pop(SESSION_IMPORT_TEXT, None)
+            request.session.pop(SESSION_IMPORT_FILENAME, None)
+            pending_filename = None
+
+    context = {
+        'pending_filename': pending_filename,
+        'preview': preview,
+    }
+    return render(request, 'tracker/import_export.html', context)
+
+
+@login_required
+@require_POST
+def import_csv_preview(request):
+    upload = request.FILES.get('csv_file')
+    if not upload:
+        messages.error(request, "Please choose a CSV file to upload.")
+        return redirect('import_export_page')
+
+    try:
+        raw = upload.read().decode('utf-8-sig')
+    except UnicodeDecodeError:
+        messages.error(request, "Could not read that file as text - is it a CSV export?")
+        return redirect('import_export_page')
+
+    try:
+        run_import(raw, commit=False)
+    except ValueError as e:
+        messages.error(request, f"Import failed: {e}")
+        return redirect('import_export_page')
+
+    request.session[SESSION_IMPORT_TEXT] = raw
+    request.session[SESSION_IMPORT_FILENAME] = upload.name
+    messages.success(request, f"Parsed '{upload.name}' - review the changes below before confirming.")
+
+    return redirect('import_export_page')
+
+
+@login_required
+@require_POST
+def import_csv_confirm(request):
+    csv_text = request.session.get(SESSION_IMPORT_TEXT)
+    if not csv_text:
+        messages.warning(request, "No pending import to confirm.")
+        return redirect('import_export_page')
+
+    try:
+        summary = run_import(csv_text, commit=True)
+        messages.success(
+            request,
+            f"Import complete. Clients created: {summary.clients_created}, "
+            f"Accounts created: {summary.accounts_created}, "
+            f"Devices created: {summary.devices_created}, updated: {summary.devices_updated}, "
+            f"Credentials created: {summary.credentials_created}, updated: {summary.credentials_updated}. "
+            f"Skipped {summary.total_skipped} row(s) without a client name or KIT NUMBER."
+        )
+    except ValueError as e:
+        messages.error(request, f"Import failed: {e}")
+    finally:
+        request.session.pop(SESSION_IMPORT_TEXT, None)
+        request.session.pop(SESSION_IMPORT_FILENAME, None)
+
+    return redirect('import_export_page')
+
+
+@login_required
+@require_POST
+def import_csv_cancel(request):
+    request.session.pop(SESSION_IMPORT_TEXT, None)
+    request.session.pop(SESSION_IMPORT_FILENAME, None)
+    messages.info(request, "Pending import discarded.")
+    return redirect('import_export_page')
+
+
+@login_required
+def export_csv_view(request):
+    csv_text = export_csv()
+    response = HttpResponse(csv_text, content_type='text/csv')
+    stamp = datetime.date.today().isoformat()
+    response['Content-Disposition'] = f'attachment; filename="starlink_export_{stamp}.csv"'
+    return response
+
+
 from tracker.middleware import set_audit_log_disabled
 from .undo_helper import revert_log_entry, redo_log_entry
 
 @login_required
+@require_POST
 def undo_action(request):
     undo_stack = request.session.get('undo_stack', [])
     if not undo_stack:
@@ -754,6 +866,7 @@ def undo_action(request):
     return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
 @login_required
+@require_POST
 def redo_action(request):
     redo_stack = request.session.get('redo_stack', [])
     if not redo_stack:

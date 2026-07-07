@@ -2,6 +2,7 @@ import re
 import datetime
 import decimal
 from django.apps import apps
+from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 from .models import AuditLog
 
@@ -86,20 +87,28 @@ def revert_log_entry(log):
         try:
             obj = model.objects.get(pk=log.object_id)
             for field_name, vals in log.changes.items():
+                try:
+                    field = model._meta.get_field(field_name)
+                except FieldDoesNotExist:
+                    # Informational-only propagation entry (e.g. "associated_login"
+                    # logged onto a StarlinkDevice) - no real field to restore.
+                    continue
                 old_val_str = vals[0]
-                field = model._meta.get_field(field_name)
                 restored_val = restore_field_value(field, old_val_str)
                 setattr(obj, field_name, restored_val)
             obj.save()
         except model.DoesNotExist:
             pass # object no longer exists
-            
+
     elif log.action == 'DELETE':
         # Revert deletion -> Recreate the object with its old values
         field_values = {}
         for field_name, vals in log.changes.items():
+            try:
+                field = model._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                continue
             old_val_str = vals[0]
-            field = model._meta.get_field(field_name)
             restored_val = restore_field_value(field, old_val_str)
             field_values[field_name] = restored_val
         
@@ -115,21 +124,27 @@ def redo_log_entry(log):
         # Redo creation -> Recreate the object with its new values
         field_values = {}
         for field_name, vals in log.changes.items():
+            try:
+                field = model._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                continue
             new_val_str = vals[1]
-            field = model._meta.get_field(field_name)
             restored_val = restore_field_value(field, new_val_str)
             field_values[field_name] = restored_val
-        
+
         obj = model(pk=log.object_id, **field_values)
         obj.save()
-        
+
     elif log.action == 'UPDATE':
         # Redo update -> Apply new values
         try:
             obj = model.objects.get(pk=log.object_id)
             for field_name, vals in log.changes.items():
+                try:
+                    field = model._meta.get_field(field_name)
+                except FieldDoesNotExist:
+                    continue
                 new_val_str = vals[1]
-                field = model._meta.get_field(field_name)
                 restored_val = restore_field_value(field, new_val_str)
                 setattr(obj, field_name, restored_val)
             obj.save()

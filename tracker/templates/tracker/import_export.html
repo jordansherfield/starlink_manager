@@ -1,0 +1,144 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Import / Export - StarlinkOps{% endblock %}
+{% block header_title %}Data Import / Export{% endblock %}
+{% block header_subtitle %}Bulk-load client, account and terminal data from CSV, or export a full backup{% endblock %}
+
+{% block content %}
+<div class="panel" style="background-color: var(--color-bg-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25); margin-bottom: 1.5rem;">
+    <h3 style="display:flex; align-items:center; gap:0.5rem; margin-top:0;"><i data-lucide="download"></i> Export</h3>
+    <p style="color: var(--color-text-secondary); font-size: 0.85rem;">
+        Download every client, billing account, terminal and credential currently in the system as a single CSV file.
+    </p>
+    <a href="{% url 'export_csv_view' %}" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:0.4rem;">
+        <i data-lucide="file-down"></i>
+        <span>Export All Data (CSV)</span>
+    </a>
+</div>
+
+<div class="panel" style="background-color: var(--color-bg-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
+    <h3 style="display:flex; align-items:center; gap:0.5rem; margin-top:0;"><i data-lucide="upload"></i> Import</h3>
+
+    {% if not preview %}
+        <p style="color: var(--color-text-secondary); font-size: 0.85rem;">
+            Upload the NetConnect-format tracker CSV (Remarks / Address / Client / Model / Account Number / StarLink ID /
+            Serial / KIT NUMBER / Sign-in User / second email / Sign-in Pass / Billing Cycle). You'll get a chance to
+            review exactly what will change before anything is saved.
+        </p>
+        <form action="{% url 'import_csv_preview' %}" method="post" enctype="multipart/form-data" style="display:flex; align-items:flex-end; gap:1rem; flex-wrap:wrap;">
+            {% csrf_token %}
+            <div class="form-group" style="margin:0;">
+                <label for="csv_file">CSV File</label>
+                <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:0.4rem;">
+                <i data-lucide="search"></i>
+                <span>Parse &amp; Preview</span>
+            </button>
+        </form>
+    {% else %}
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
+            <p style="color: var(--color-text-secondary); font-size: 0.85rem; margin:0;">
+                Previewing <strong>{{ pending_filename }}</strong> — nothing has been written to the database yet.
+            </p>
+            <div style="display:flex; gap:0.5rem;">
+                <form action="{% url 'import_csv_cancel' %}" method="post" style="margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary" style="display:inline-flex; align-items:center; gap:0.4rem;">
+                        <i data-lucide="x"></i>
+                        <span>Discard</span>
+                    </button>
+                </form>
+                <form action="{% url 'import_csv_confirm' %}" method="post" style="margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:0.4rem;">
+                        <i data-lucide="check"></i>
+                        <span>Confirm Import</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Summary tiles -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem; margin-bottom:1.5rem;">
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.clients_created }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Clients</div>
+            </div>
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.accounts_created }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Accounts</div>
+            </div>
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.devices_created }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Devices</div>
+            </div>
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-primary);">{{ preview.devices_updated }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">Devices Updated</div>
+            </div>
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.credentials_created }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Credentials</div>
+            </div>
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-text-muted);">{{ preview.total_skipped }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">Rows Skipped</div>
+            </div>
+        </div>
+
+        <!-- Row-by-row detail -->
+        <div style="overflow-x: auto; background-color: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px;">
+            <table class="compact-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-secondary);">
+                        <th style="padding: 0.6rem 0.9rem;">CSV Line</th>
+                        <th style="padding: 0.6rem 0.9rem;">Client</th>
+                        <th style="padding: 0.6rem 0.9rem;">Kit Number</th>
+                        <th style="padding: 0.6rem 0.9rem;">Account</th>
+                        <th style="padding: 0.6rem 0.9rem;">Status / Model</th>
+                        <th style="padding: 0.6rem 0.9rem;">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview.rows %}
+                    <tr style="border-bottom: 1px dashed rgba(255,255,255,0.05);">
+                        <td style="padding: 0.6rem 0.9rem; color:var(--color-text-muted);">{{ row.line }}</td>
+                        <td style="padding: 0.6rem 0.9rem;">{{ row.client_name }}</td>
+                        <td style="padding: 0.6rem 0.9rem;">
+                            {% if row.kit_number %}<span class="kit-badge" style="font-size:0.7rem; padding:0.15rem 0.4rem;">{{ row.kit_number }}</span>{% else %}<span style="color:var(--color-text-muted); font-style:italic;">-</span>{% endif %}
+                        </td>
+                        <td style="padding: 0.6rem 0.9rem;">{{ row.account_number|default:"-" }}</td>
+                        <td style="padding: 0.6rem 0.9rem;">
+                            {% if not row.skipped %}{{ row.status }} / {{ row.model }}{% else %}<span style="color:var(--color-text-muted); font-style:italic;">-</span>{% endif %}
+                        </td>
+                        <td style="padding: 0.6rem 0.9rem;">
+                            {% if row.skipped %}
+                                <span class="status-badge status-hardware-fault" style="font-size:0.65rem; padding:0.15rem 0.4rem;">SKIP: {{ row.skip_reason }}</span>
+                            {% elif row.device_action == 'create' %}
+                                <span class="status-badge status-running" style="font-size:0.65rem; padding:0.15rem 0.4rem;">CREATE</span>
+                            {% else %}
+                                <span class="status-badge status-to-install" style="font-size:0.65rem; padding:0.15rem 0.4rem;">UPDATE</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <p style="color: var(--color-text-muted); font-size: 0.75rem; margin-top:1rem;">
+            If anything here looks wrong, click <strong>Discard</strong> and fix the CSV. If you confirm and something's still
+            off afterwards, the whole import lands as one action in the <a href="{% url 'audit_logs_page' %}">Audit Logs</a> —
+            use the <strong>Undo</strong> button in the top bar to revert it in one click.
+        </p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}

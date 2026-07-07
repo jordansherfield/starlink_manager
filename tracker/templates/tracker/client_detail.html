@@ -357,7 +357,7 @@
                             <div class="item-card">
                                 <div class="item-card-header">
                                     <span class="item-card-title"><i data-lucide="key"></i> {{ cred.label }} (Account: {{ acc.account_number }})</span>
-                                    <form action="{% url 'delete_credential' cred.id %}" method="post" onsubmit="return confirm('Delete this credential permanently?');">
+                                    <form action="{% url 'delete_credential' cred.id %}" method="post" onsubmit="return confirmDelete(this, 'Permanently delete the \'{{ cred.label|escapejs }}\' login ({{ cred.username|escapejs }}) for account {{ acc.account_number|escapejs }}? You can Undo this right after.');">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-logout" style="padding: 0.25rem; height: auto;" title="Delete Credential">
                                             <i data-lucide="trash-2" style="color: var(--color-danger); width: 16px; height: 16px;"></i>
@@ -503,7 +503,7 @@
                                             <i data-lucide="map-pin" style="width: 14px; height: 14px;"></i> Show
                                         </button>
                                     {% endif %}
-                                    <form action="{% url 'delete_starlink' sl.id %}" method="post" onsubmit="return confirm('Delete this Starlink device permanently?');">
+                                    <form action="{% url 'delete_starlink' sl.id %}" method="post" onsubmit="return confirmDelete(this, 'Permanently delete Starlink kit \'{{ sl.kit_number|escapejs }}\' at {{ sl.location_name|escapejs }}? Its location, Wi-Fi, and history will be removed. You can Undo this right after.');">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-logout" style="padding: 0.25rem; height: auto;" title="Delete Device">
                                             <i data-lucide="trash-2" style="color: var(--color-danger); width: 16px; height: 16px;"></i>

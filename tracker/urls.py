@@ -35,6 +35,13 @@ urlpatterns = [
     
     # Audit Logs
     path('logs/', views.audit_logs_page, name='audit_logs_page'),
+
+    # Import / Export
+    path('data/', views.import_export_page, name='import_export_page'),
+    path('data/import/preview/', views.import_csv_preview, name='import_csv_preview'),
+    path('data/import/confirm/', views.import_csv_confirm, name='import_csv_confirm'),
+    path('data/import/cancel/', views.import_csv_cancel, name='import_csv_cancel'),
+    path('data/export/', views.export_csv_view, name='export_csv_view'),
     
     # Undo / Redo actions
     path('undo/', views.undo_action, name='undo_action'),

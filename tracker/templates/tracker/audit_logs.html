@@ -124,8 +124,8 @@
         
         <div style="display: flex; gap: 0.25rem;">
             {% if page_obj.has_previous %}
-                <a href="?page=1{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">&laquo; First</a>
-                <a href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Previous</a>
+                <a href="?page=1{% if query %}&q={{ query|urlencode }}{% endif %}{% if action_filter %}&action={{ action_filter|urlencode }}{% endif %}{% if model_filter %}&model={{ model_filter|urlencode }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}{% if action_filter %}&action={{ action_filter|urlencode }}{% endif %}{% if model_filter %}&model={{ model_filter|urlencode }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Previous</a>
             {% endif %}
             
             <span style="padding: 0.35rem 0.75rem; background: var(--color-primary); color: #fff; font-size: 0.75rem; border-radius: 4px; font-weight: 600;">
@@ -133,8 +133,8 @@
             </span>
             
             {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Next</a>
-                <a href="?page={{ page_obj.paginator.num_pages }}{% if query %}&q={{ query }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if model_filter %}&model={{ model_filter }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Last &raquo;</a>
+                <a href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}{% if action_filter %}&action={{ action_filter|urlencode }}{% endif %}{% if model_filter %}&model={{ model_filter|urlencode }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% if query %}&q={{ query|urlencode }}{% endif %}{% if action_filter %}&action={{ action_filter|urlencode }}{% endif %}{% if model_filter %}&model={{ model_filter|urlencode }}{% endif %}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Last &raquo;</a>
             {% endif %}
         </div>
     </div>
