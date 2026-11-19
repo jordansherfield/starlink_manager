@@ -134,6 +134,10 @@ STORAGES = {
     },
 }
 
+# Primary key type used by the existing migrations. Set explicitly so servers on an older Django
+# (whose default is AutoField) don't see phantom "alter field id" changes.
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 # Link credentials to their Bitwarden/Vaultwarden item, e.g.
 #   BITWARDEN_ITEM_URL=https://vault.example.com/#/vault?itemId={id}
 BITWARDEN_ITEM_URL = os.environ.get('BITWARDEN_ITEM_URL', '')
