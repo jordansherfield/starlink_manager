@@ -744,3 +744,79 @@ class DashboardSpeedTests(TestCase):
         owner = Client.objects.get()
         res = self.client.get(reverse('client_detail', args=[owner.id]))
         self.assertContains(res, '(13 entries)')
+
+
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class DashboardPagingTests(TestCase):
+    def setUp(self):
+        set_current_user(None)
+        self.user = User.objects.create_user('staff', password='pw')
+        self.client.force_login(self.user)
+
+    def make(self, n):
+        for i in range(n):
+            c = Client.objects.create(name=f'Client {i:03d}')
+            a = StarlinkAccount.objects.create(account_number=f'ACC-{i:03d}', client=c)
+            StarlinkDevice.objects.create(kit_number=f'KIT40000{i:04d}', location_name='X', client=c, account=a)
+
+    def test_first_20_now_rest_of_page_in_background(self):
+        self.make(30)
+        res = self.client.get(reverse('dashboard'))
+        html = res.content.decode()
+        self.assertEqual(html.count('class="client-card"'), 20)
+        self.assertIn('Loading 10 more clients', html)
+        self.assertIn('client-name-text">Client 019<', html)
+        self.assertNotIn('client-name-text">Client 020<', html)
+        self.assertNotIn('class="dash-pager"', html)                    # one page only - no page links
+        more = self.client.get(reverse('dashboard_chunk'), {'kind': 'clients', 'page': 1}).content.decode()
+        self.assertEqual(more.count('class="client-card"'), 10)
+        self.assertIn('Client 020', more)
+        self.assertIn('Client 029', more)
+        accounts_more = self.client.get(reverse('dashboard_chunk'), {'kind': 'accounts', 'apage': 1}).content.decode()
+        self.assertIn('ACC-029', accounts_more)
+        self.assertNotIn('ACC-019', accounts_more)
+
+    def test_pagination_after_80(self):
+        self.make(85)
+        page1 = self.client.get(reverse('dashboard')).content.decode()
+        self.assertIn('Clients 1–80 of 85', page1)
+        self.assertIn('Loading 60 more clients', page1)
+        self.assertIn('Accounts 1–80 of 85', page1)
+        page2 = self.client.get(reverse('dashboard'), {'page': 2}).content.decode()
+        self.assertEqual(page2.count('class="client-card"'), 5)
+        self.assertIn('Client 080', page2)
+        self.assertNotIn('Loading', page2.split('id="accounts-tab"')[0])  # nothing more to load on page 2
+        self.assertEqual(len(self.client.get(reverse('dashboard'), {'page': 2}).context['starlinks_json']), 0)
+
+    def test_search_is_kept_in_page_links_and_background_loading(self):
+        self.make(85)
+        Client.objects.filter(name__in=[f'Client {i:03d}' for i in range(40)]).update(company='Farbell')
+        res = self.client.get(reverse('dashboard'), {'q': 'client 0', 'page': 1})
+        html = res.content.decode()
+        self.assertIn('Clients 1–80 of 85', html)
+        self.assertIn('q=client+0', html)
+        self.assertIn('kind=clients&amp;page=1&amp;q=client%200', html)
+
+    def test_unassigned_count_and_map_cover_everything(self):
+        self.make(25)
+        StarlinkDevice.objects.create(kit_number='KIT400009999', location_name='Spare', latitude=-20.1, longitude=28.5)
+        StarlinkDevice.objects.filter(kit_number='KIT400000024').update(latitude=-20.2, longitude=28.6)
+        res = self.client.get(reverse('dashboard'))
+        self.assertContains(res, 'Unassigned Terminals (1)')
+        self.assertEqual({d['kit_number'] for d in res.context['starlinks_json']}, {'KIT400009999', 'KIT400000024'})
+
+    def test_background_chunk_needs_login(self):
+        self.client.logout()
+        res = self.client.get(reverse('dashboard_chunk'), {'kind': 'clients'})
+        self.assertEqual(res.status_code, 302)
+
+
+    def test_map_data_is_escaped_json(self):
+        StarlinkDevice.objects.create(kit_number='KIT400001111', location_name='Bob\'s "farm" </script>',
+                                      latitude=-20.1, longitude=28.5)
+        html = self.client.get(reverse('dashboard')).content.decode()
+        self.assertIn('id="starlink-data"', html)
+        self.assertNotIn('"farm" </script>', html)

@@ -1,0 +1,13 @@
+{# Page links for a dashboard list. Needs: page_obj, links (from views._page_links), label. #}
+{% if links %}
+<nav class="dash-pager" aria-label="{{ label }} pages">
+    <span class="dash-pager-info">{{ label }} {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>
+    <span class="dash-pager-links">
+        {% for link in links %}
+            {% if link.ellipsis %}<span class="dash-pager-gap">…</span>
+            {% elif link.current %}<span class="dash-pager-current">{{ link.number }}</span>
+            {% else %}<a href="{{ link.url }}">{{ link.number }}</a>{% endif %}
+        {% endfor %}
+    </span>
+</nav>
+{% endif %}

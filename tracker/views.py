@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import re
+from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -40,14 +41,12 @@ def _attach_kit_history(devices, limit=None):
     return devices
 
 
-@login_required
-def dashboard(request):
-    query = request.GET.get('q', '').strip()
-    
-    # Base querysets - archived credentials/accounts/devices are excluded from
-    # every normal listing (see archived_items() for the recovery view). Prefetch
-    # with a filtered queryset (rather than filtering in Python) so this stays a
-    # single query per relation instead of reintroducing per-client N+1 lookups.
+DASHBOARD_PAGE_SIZE = 80     # clients / billing accounts per page
+DASHBOARD_FIRST_CHUNK = 20   # shown straight away; the rest of the page loads in the background
+
+
+def _dashboard_querysets(query):
+    """Filtered, ordered clients / unassigned units / accounts for the dashboard (not yet evaluated)."""
     active_credentials_qs = Credential.objects.filter(is_archived=False)
     active_starlinks_qs = StarlinkDevice.objects.filter(is_archived=False).select_related('account').prefetch_related(
         Prefetch('account__credentials', queryset=active_credentials_qs)
@@ -55,17 +54,16 @@ def dashboard(request):
     active_accounts_qs = StarlinkAccount.objects.filter(is_archived=False).prefetch_related(
         Prefetch('credentials', queryset=active_credentials_qs)
     )
-
     clients = Client.objects.prefetch_related(
         Prefetch('starlinks', queryset=active_starlinks_qs),
         Prefetch('accounts', queryset=active_accounts_qs),
-    )
+    ).order_by('name', 'id')
     unassigned_starlinks = StarlinkDevice.objects.filter(client__isnull=True, is_archived=False).select_related('account')
     accounts = StarlinkAccount.objects.filter(is_archived=False).select_related('client').prefetch_related(
         Prefetch('credentials', queryset=active_credentials_qs),
         Prefetch('starlinks', queryset=StarlinkDevice.objects.filter(is_archived=False).select_related('client')),
-    )
-    
+    ).order_by('account_number', 'id')
+
     if query:
         clients = clients.filter(
             Q(name__icontains=query) |
@@ -79,7 +77,6 @@ def dashboard(request):
             Q(starlinks__location_name__icontains=query) |
             Q(starlinks__account__account_number__icontains=query)
         ).distinct()
-        
         unassigned_starlinks = unassigned_starlinks.filter(
             Q(kit_number__icontains=query) |
             Q(location_name__icontains=query) |
@@ -87,7 +84,6 @@ def dashboard(request):
             Q(starlink_id__icontains=query) |
             Q(account__account_number__icontains=query)
         )
-        
         accounts = accounts.filter(
             Q(account_number__icontains=query) |
             Q(client__name__icontains=query) |
@@ -96,46 +92,32 @@ def dashboard(request):
             Q(credentials__username__icontains=query) |
             Q(credentials__label__icontains=query)
         ).distinct()
-        
-    # Serialize starlink devices for map visualization
-    starlinks_data = []
-    
-    # Client-assigned starlinks
+    return clients, unassigned_starlinks, accounts
+
+
+def _prepare_clients(clients):
+    """Billing accounts (direct and via units) and recent kit history for each client card."""
+    clients = list(clients)
     for client in clients:
-        for sl in client.starlinks.all():
-            if sl.latitude is not None and sl.longitude is not None:
-                starlinks_data.append({
-                    'id': sl.id,
-                    'kit_number': sl.kit_number,
-                    'location_name': sl.location_name,
-                    'client_name': client.name,
-                    'lat': sl.latitude,
-                    'lng': sl.longitude,
-                    'status': sl.status,
-                    'model': sl.get_model_display(),
-                    'wifi_name': sl.wifi_name or 'None',
-                    'serial_number': sl.serial_number or 'None',
-                })
-                
-    # Unassigned starlinks
-    for sl in unassigned_starlinks:
-        if sl.latitude is not None and sl.longitude is not None:
-            starlinks_data.append({
-                'id': sl.id,
-                'kit_number': sl.kit_number,
-                'location_name': sl.location_name,
-                'client_name': 'Unassigned',
-                'lat': sl.latitude,
-                'lng': sl.longitude,
-                'status': sl.status,
-                'model': sl.get_model_display(),
-                'wifi_name': sl.wifi_name or 'None',
-                'serial_number': sl.serial_number or 'None',
-            })
-                
+        associated_accounts, seen_accs = [], set()
+        for acc in client.accounts.all():                       # direct links
+            if acc.id not in seen_accs:
+                seen_accs.add(acc.id)
+                associated_accounts.append(acc)
+        for sl in client.starlinks.all():                       # links via the client's units
+            if sl.account and not sl.account.is_archived and sl.account.id not in seen_accs:
+                seen_accs.add(sl.account.id)
+                associated_accounts.append(sl.account)
+        client.associated_accounts = associated_accounts
+    _attach_kit_history([sl for client in clients for sl in client.starlinks.all()], limit=DASHBOARD_HISTORY_LIMIT)
+    return clients
+
+
+def _prepare_accounts(accounts):
+    """Margin and linked clients for each billing account row (from prefetched data - no extra queries)."""
+    accounts = list(accounts)
     for acc in accounts:
         acc.margin = acc.client_invoice - acc.cost_to_us
-        # Combine direct client and client linked via starlinks (from the prefetched units - no extra queries)
         associated_clients = []
         for sl in acc.starlinks.all():
             if sl.client and sl.client not in associated_clients:
@@ -144,40 +126,85 @@ def dashboard(request):
             associated_clients.append(acc.client)
         acc.associated_clients = associated_clients
         acc.clients_count = len(associated_clients)
+    return accounts
 
-    # Associate accounts and credentials directly onto clients for template use
-    for client in clients:
-        associated_accounts = []
-        seen_accs = set()
 
-        # Direct account links (assigned via the account's own "Link Client" field)
-        for acc in client.accounts.all():
-            if acc.id not in seen_accs:
-                seen_accs.add(acc.id)
-                associated_accounts.append(acc)
+def _page_links(request, page_obj, param):
+    """Elided page list with URLs that keep the search and the other list's page."""
+    params = request.GET.copy()
+    links = []
+    for number in page_obj.paginator.get_elided_page_range(page_obj.number, on_each_side=2, on_ends=1):
+        if number == page_obj.paginator.ELLIPSIS:
+            links.append({'ellipsis': True})
+            continue
+        params[param] = number
+        links.append({'number': number, 'url': '?' + params.urlencode(), 'current': number == page_obj.number})
+    return links
 
-        # Account links via the client's hardware devices
-        for sl in client.starlinks.all():
-            if sl.account and not sl.account.is_archived and sl.account.id not in seen_accs:
-                seen_accs.add(sl.account.id)
-                associated_accounts.append(sl.account)
-        client.associated_accounts = associated_accounts
 
-    # Kit history: latest few entries per unit, all fetched in one query (full history is on the client page)
-    unassigned_starlinks = list(unassigned_starlinks)
-    _attach_kit_history([sl for client in clients for sl in client.starlinks.all()] + unassigned_starlinks,
-                        limit=DASHBOARD_HISTORY_LIMIT)
+@login_required
+def dashboard(request):
+    query = request.GET.get('q', '').strip()
+    clients_qs, unassigned_qs, accounts_qs = _dashboard_querysets(query)
+
+    # Map: every matching unit, from one light query (independent of which page of cards is shown)
+    map_units = StarlinkDevice.objects.filter(is_archived=False, latitude__isnull=False, longitude__isnull=False)
+    if query:
+        map_units = map_units.filter(Q(client__in=clients_qs.values('pk')) | Q(pk__in=unassigned_qs.values('pk')))
+    starlinks_data = [{
+        'id': sl.id,
+        'kit_number': sl.kit_number,
+        'location_name': sl.location_name,
+        'client_name': sl.client.name if sl.client else 'Unassigned',
+        'lat': sl.latitude,
+        'lng': sl.longitude,
+        'status': sl.status,
+        'model': sl.get_model_display(),
+        'wifi_name': sl.wifi_name or 'None',
+        'serial_number': sl.serial_number or 'None',
+    } for sl in map_units.select_related('client')]
+
+    # Clients: page of DASHBOARD_PAGE_SIZE, first DASHBOARD_FIRST_CHUNK rendered now, the rest fetched by the page
+    client_page = Paginator(clients_qs, DASHBOARD_PAGE_SIZE).get_page(request.GET.get('page'))
+    page_clients = list(client_page.object_list)
+    account_page = Paginator(accounts_qs, DASHBOARD_PAGE_SIZE).get_page(request.GET.get('apage'))
+    page_accounts = list(account_page.object_list)
+
+    unassigned_starlinks = list(unassigned_qs)
+    _attach_kit_history(unassigned_starlinks, limit=DASHBOARD_HISTORY_LIMIT)
 
     context = {
-        'clients': clients,
+        'clients': page_clients,
+        'clients_first': _prepare_clients(page_clients[:DASHBOARD_FIRST_CHUNK]),
+        'clients_more': max(0, len(page_clients) - DASHBOARD_FIRST_CHUNK),
+        'client_page': client_page,
+        'client_page_links': _page_links(request, client_page, 'page') if client_page.paginator.num_pages > 1 else [],
         'unassigned_starlinks': unassigned_starlinks,
-        'accounts': accounts,
+        'accounts': page_accounts,
+        'accounts_first': _prepare_accounts(page_accounts[:DASHBOARD_FIRST_CHUNK]),
+        'accounts_more': max(0, len(page_accounts) - DASHBOARD_FIRST_CHUNK),
+        'account_page': account_page,
+        'account_page_links': _page_links(request, account_page, 'apage') if account_page.paginator.num_pages > 1 else [],
         'query': query,
         'starlinks_json': starlinks_data,
         'all_clients_list': Client.objects.all(),
         'all_accounts_list': StarlinkAccount.objects.filter(is_archived=False),
     }
     return render(request, 'tracker/dashboard.html', context)
+
+
+@login_required
+def dashboard_chunk(request):
+    """The rest of a dashboard page (client cards or billing account rows), loaded in the background."""
+    query = request.GET.get('q', '').strip()
+    clients_qs, _, accounts_qs = _dashboard_querysets(query)
+    if request.GET.get('kind') == 'accounts':
+        page = Paginator(accounts_qs, DASHBOARD_PAGE_SIZE).get_page(request.GET.get('apage'))
+        rows = _prepare_accounts(list(page.object_list)[DASHBOARD_FIRST_CHUNK:])
+        return render(request, 'tracker/partials/account_rows.html', {'accounts': rows, 'query': query})
+    page = Paginator(clients_qs, DASHBOARD_PAGE_SIZE).get_page(request.GET.get('page'))
+    cards = _prepare_clients(list(page.object_list)[DASHBOARD_FIRST_CHUNK:])
+    return render(request, 'tracker/partials/client_cards.html', {'clients': cards, 'query': query})
 
 @login_required
 def add_client(request):

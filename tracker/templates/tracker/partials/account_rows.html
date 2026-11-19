@@ -1,0 +1,127 @@
+{# Billing account table rows. Used by the dashboard and by dashboard_chunk (background loading). #}
+                        {% for acc in accounts %}
+                        <tr class="account-row-hover">
+                            <td style="font-family:monospace; font-weight:600;"><code>{{ acc.account_number }}</code></td>
+                            <td>
+                                {% if acc.associated_clients %}
+                                    {% for c in acc.associated_clients %}
+                                        <a href="{% url 'client_detail' c.id %}" style="color:var(--color-primary); text-decoration:none; border-bottom:1px dashed transparent; font-size:0.75rem;" onmouseover="this.style.borderColor='var(--color-primary)'" onmouseout="this.style.borderColor='transparent'">{{ c.name }}</a>{% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span style="color:var(--color-text-muted); font-size:0.75rem;">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if acc.account_due_by %}
+                                    <span class="status-badge status-account-issue" style="font-size:0.7rem; padding:0.15rem 0.4rem; white-space: nowrap;">{{ acc.account_due_by|date:"M d, Y" }}</span>
+                                    {% if acc.balance_due %}<span class="status-badge status-hardware-fault" style="font-size:0.7rem; padding:0.15rem 0.4rem; white-space: nowrap;" title="Outstanding on Starlink at the last sync">Owes ${{ acc.balance_due }}</span>{% endif %}
+                                {% else %}
+                                    <span style="color:var(--color-text-muted); font-size:0.75rem;">-</span>
+                                {% endif %}
+                            </td>
+                            <td>${{ acc.cost_to_us }}</td>
+                            <td>${{ acc.client_invoice }}</td>
+                            <td style="font-weight:600; color: {% if acc.margin >= 0 %}var(--color-success){% else %}var(--color-danger){% endif %};">
+                                ${{ acc.margin|floatformat:2 }}
+                            </td>
+                            {% comment %} <td style="font-size:0.75rem; color:var(--color-text-secondary); white-space: nowrap;">
+                                {{ acc.clients_count }} Cli / {{ acc.starlinks.count }} U
+                            </td> {% endcomment %}
+                            <td style="text-align:center;">
+                                <button type="button" class="btn btn-secondary" onclick="toggleRowLogins('logins-row-{{ acc.id }}')" style="padding:0.2rem 0.4rem; font-size:0.7rem; display:inline-flex; align-items:center; gap:0.25rem;">
+                                    <i data-lucide="key" style="width:12px; height:12px; color:var(--color-primary);"></i>
+                                    <span>{{ acc.credentials.count }}</span>
+                                </button>
+                            </td>
+                            <td style="text-align:right;">
+                                <div style="display:inline-flex; gap:0.35rem; align-items:center;">
+                                    <form action="{% url 'mark_account_paid' acc.id %}" method="post" class="inline-delete-form" style="margin:0;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-icon" title="Mark Account Paid" style="color: var(--color-success); width:26px; height:26px;">
+                                            <i data-lucide="check-square" style="width:14px; height:14px;"></i>
+                                        </button>
+                                    </form>
+                                    <form action="{% url 'archive_account' acc.id %}" method="post" class="inline-delete-form" style="margin:0;" onsubmit="return confirmArchive(this, 'Account {{ acc.account_number|escapejs }}');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="reason">
+                                        <button type="submit" class="btn-icon" title="Archive Account" style="width:26px; height:26px;">
+                                            <i data-lucide="archive" style="width:14px; height:14px;"></i>
+                                        </button>
+                                    </form>
+                                    {% comment %} <form action="{% url 'delete_account' acc.id %}" method="post" class="inline-delete-form" style="margin:0;" onsubmit="return confirm('Are you sure you want to delete this billing account? All linked terminals and clients will be unlinked.');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-icon btn-icon-danger" title="Delete Account" style="width:26px; height:26px;">
+                                            <i data-lucide="trash-2" style="width:14px; height:14px;"></i>
+                                        </button>
+                                    </form> {% endcomment %}
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Hidden Row for Logins Expansion -->
+                        <tr id="logins-row-{{ acc.id }}" style="display:none; background-color: rgba(168, 85, 247, 0.02);">
+                            <td colspan="8" style="padding: 0.75rem 1rem;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom:0.25rem;">
+                                    <span style="font-weight:600; font-size:0.75rem; color:var(--color-text-secondary); display:flex; align-items:center; gap:0.25rem;">
+                                        <i data-lucide="lock" style="width:12px; height:12px; color:var(--color-primary);"></i> Credentials for Account {{ acc.account_number }}
+                                    </span>
+                                    <button type="button" class="btn btn-secondary" onclick="openAddCredentialModal({{ acc.id }}, '{{ acc.account_number|escapejs }}')" style="padding: 0.2rem 0.4rem; font-size: 0.7rem; border-color: var(--color-primary); display:flex; align-items:center; gap:0.25rem;">
+                                        <i data-lucide="plus" style="width: 10px; height: 10px;"></i> Add Login
+                                    </button>
+                                </div>
+                                {% if acc.credentials.all %}
+                                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:0.5rem; margin-top:0.5rem;">
+                                    {% for cred in acc.credentials.all %}
+                                    <div style="background-color: var(--color-bg-input); border: 1px solid var(--color-border); border-radius: 6px; padding: 0.5rem; display:flex; justify-content:space-between; align-items:center;">
+                                        <div style="flex-grow: 1;">
+                                            <span style="font-size: 0.7rem; font-weight:600; color:var(--color-primary); display:block; margin-bottom:0.15rem;">{{ cred.label }}</span>
+                                            <div style="display:flex; flex-direction:column; gap:0.15rem; font-size:0.7rem;">
+                                                <div style="display:flex; align-items:center; gap:0.25rem;">
+                                                    <span style="color:var(--color-text-muted); width:35px;">User:</span>
+                                                    <span>{{ cred.username }}</span>
+                                                    <button class="btn-copy" onclick="copyText('{{ cred.username|escapejs }}', this)" title="Copy Username" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
+                                                        <i data-lucide="copy" style="width:10px; height:10px;"></i>
+                                                    </button>
+                                                </div>
+                                                <div style="display:flex; align-items:center; gap:0.25rem;">
+                                                    <span style="color:var(--color-text-muted); width:35px;">Pass:</span>
+                                                    <span class="password-masked" data-secret="{{ cred.password }}" onclick="revealSecret(this)" title="Click to show">{% if cred.password %}••••••••{% else %}<span style="color:var(--color-text-muted);">in Bitwarden</span>{% endif %}</span>
+                                                    <button class="btn-copy" {% if not cred.password %}hidden{% endif %} onclick="copyText('{{ cred.password|escapejs }}', this)" title="Copy Password" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
+                                                        <i data-lucide="copy" style="width:10px; height:10px;"></i>
+                                                    </button>
+                                                </div>
+                                                {% if cred.email_pass %}
+                                                <div style="display:flex; align-items:center; gap:0.25rem;">
+                                                    <span style="color:var(--color-text-muted); width:35px;">Email P:</span>
+                                                    <span class="password-masked" data-secret="{{ cred.email_pass }}" onclick="revealSecret(this)" title="Click to show">{% if cred.email_pass %}••••••••{% else %}<span style="color:var(--color-text-muted);">in Bitwarden</span>{% endif %}</span>
+                                                    <button class="btn-copy" onclick="copyText('{{ cred.email_pass|escapejs }}', this)" title="Copy Email Password" style="background:none; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0; display:flex; align-items:center;">
+                                                        <i data-lucide="copy" style="width:10px; height:10px;"></i>
+                                                    </button>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            {% if cred.notes %}
+                                                <p style="font-size:0.65rem; color:var(--color-text-muted); margin-top:0.15rem; margin-bottom:0;">{{ cred.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <form action="{% url 'archive_credential' cred.id %}" method="post" class="inline-delete-form" onsubmit="return confirmArchive(this, '{{ cred.label|escapejs }} ({{ cred.username|escapejs }})');" style="margin:0;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="reason">
+                                            <button type="submit" style="background:none; border:none; color:var(--color-text-muted); cursor:pointer; padding:0.25rem; display:flex; align-items:center;" title="Archive Credential">
+                                                <i data-lucide="archive" style="width:12px; height:12px;"></i>
+                                            </button>
+                                        </form>
+                                        <form action="{% url 'delete_credential' cred.id %}" method="post" class="inline-delete-form" onsubmit="return confirmDelete(this, 'Permanently delete the \'{{ cred.label|escapejs }}\' login ({{ cred.username|escapejs }}) for account {{ acc.account_number|escapejs }}? You can Undo this right after.');" style="margin:0;">
+                                            {% csrf_token %}
+                                            <button type="submit" style="background:none; border:none; color:var(--color-text-muted); cursor:pointer; padding:0.25rem; display:flex; align-items:center;" title="Delete Credential">
+                                                <i data-lucide="x" style="width:12px; height:12px;"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p style="font-size:0.75rem; color:var(--color-text-muted); margin:0.25rem 0;">No login credentials stored for this account.</p>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
