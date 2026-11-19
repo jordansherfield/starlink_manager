@@ -171,6 +171,7 @@ class ImportSummary:
         self.skipped_duplicate = 0
         self.plans_created = 0
         self.skipped_not_harvested = 0
+        self.extra_logins = 0
         self.notes = []          # account-level findings shown above the row list
 
     @property
@@ -322,6 +323,14 @@ def _harvest_records(rows):
     for r in data:
         status = r.get('status', '')
         kits = [k.upper() for k in _split(r.get('kit_numbers'))]
+        if status == 'duplicate_login' and r.get('account_number') and r.get('email'):
+            yield {
+                'line': r['_line'], 'login_only': True, 'harvest': True,
+                'client_name': '', 'kit_number': '', 'account_number': r['account_number'],
+                'credentials': [('Starlink Login', r['email'], '', r.get('bitwarden_item_id', ''))],
+                'note': r.get('error', ''),
+            }
+            continue
         if status not in ('ok', 'partial') or not kits:
             yield {
                 'line': r['_line'], 'skip_reason': (f"Not harvested ({status}) - {r.get('email', '')}"
@@ -438,6 +447,26 @@ class _ClientIndex:
         return client, True, None
 
 
+def _add_extra_logins(rec):
+    """Record another Starlink login (email + Bitwarden item) on an existing account.
+    Returns the username added, or '' if there was nothing new."""
+    account = StarlinkAccount.objects.filter(account_number__iexact=rec['account_number']).first()
+    if not account:
+        return ''
+    added = ''
+    for label, username, password, *extra in rec['credentials']:
+        bitwarden_id = extra[0] if extra else ''
+        cred = Credential.objects.filter(account=account, username__iexact=username).first()
+        if cred is None:
+            Credential.objects.create(account=account, username=username, label=label, password=password,
+                                      bitwarden_item_id=bitwarden_id or None)
+            added = username
+        elif bitwarden_id and not cred.bitwarden_item_id:
+            cred.bitwarden_item_id = bitwarden_id
+            cred.save(update_fields=['bitwarden_item_id'])
+    return added
+
+
 def _apply_record(rec, clients, plans, seen_kits, summary, restore_archived):
     line = rec['line']
     client_name = rec['client_name'].strip()
@@ -453,6 +482,15 @@ def _apply_record(rec, clients, plans, seen_kits, summary, restore_archived):
         summary.skipped_not_harvested += 1
         summary.rows.append({**base_row, 'skip_reason': rec['skip_reason']})
         return
+    if rec.get('login_only'):
+        added = _add_extra_logins(rec)
+        summary.extra_logins += 1
+        summary.rows.append({**base_row, 'skip_reason':
+                             (f"Extra login {added} added to {account_number}" if added else
+                              f"Extra login for {account_number} (already recorded)")
+                             if StarlinkAccount.objects.filter(account_number__iexact=account_number).exists()
+                             else f"Extra login for {account_number}, but that account isn't in the app"})
+        return
     if not client_name and not rec['allow_unassigned']:
         summary.skipped_no_client += 1
         return
@@ -461,6 +499,12 @@ def _apply_record(rec, clients, plans, seen_kits, summary, restore_archived):
         summary.rows.append({**base_row, 'skip_reason': 'No KIT NUMBER'})
         return
     if kit_number in seen_kits:
+        if rec.get('harvest'):      # same dish seen through another login of the same account
+            added = _add_extra_logins(rec)
+            summary.extra_logins += 1
+            summary.rows.append({**base_row, 'skip_reason': f"Same dish as line {seen_kits[kit_number]} (another login"
+                                                            f"{' - ' + added + ' added' if added else ''})"})
+            return
         summary.skipped_duplicate += 1
         summary.rows.append({**base_row, 'skip_reason': f'Duplicate of line {seen_kits[kit_number]}'})
         return
@@ -651,6 +695,9 @@ def _harvest_account_checks(summary):
                 f"{plan_cost} - set a price override on the right unit, or fix the plan price.")
         if account.balance_due:
             summary.notes.append(f"{account.account_number}: {account.balance_due} outstanding on Starlink.")
+    if summary.extra_logins:
+        summary.notes.append(f"{summary.extra_logins} login(s) open an account already in this file - "
+                             "saved as extra logins on that account, not as separate dishes.")
     new_units = sum(1 for r in summary.rows if r.get('device_action') == 'create')
     if new_units:
         summary.notes.insert(0, f"{new_units} new unit(s) from Starlink will be added unassigned - "
@@ -673,7 +720,8 @@ def run_import(csv_text, commit=True, restore_archived=False):
     header = [h.strip() for h in rows[0]] if rows else []
     if HARVEST_MARKERS <= set(header):
         summary.format = FORMAT_HARVEST
-        records = _harvest_records(rows)
+        # extra logins last, so the account they belong to exists by then
+        records = sorted(_harvest_records(rows), key=lambda r: bool(r.get('login_only')))
     elif rows and header[:2] == EXPORT_HEADER[:2] and 'Kit Number' in header:
         summary.format = FORMAT_EXPORT
         records = _export_records(rows)

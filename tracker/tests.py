@@ -675,3 +675,26 @@ class AuditSecretTests(TestCase):
         call_command('redact_audit_passwords', verbosity=0)
         log = AuditLog.objects.get()
         self.assertEqual(log.changes, {'password': ['(hidden)', '(hidden)'], 'label': ['a', 'b']})
+
+
+class SharedLoginTests(TestCase):
+    """Two Bitwarden logins (emails) that open the same Starlink account."""
+    def setUp(self):
+        set_current_user(None)
+
+    def test_duplicate_login_row_adds_second_login_only(self):
+        alias = dict(email='owner@client.co.zw', bitwarden_item_id='bw-456', account_number=MINI_ROW['account_number'],
+                     status='duplicate_login', error='Same Starlink account as hotburn@netconnect.co.zw')
+        summary = run_import(harvest_csv(alias, MINI_ROW))          # alias first: still handled after
+        self.assertEqual(StarlinkDevice.objects.count(), 1)
+        logins = sorted(StarlinkAccount.objects.get().credentials.values_list('username', 'bitwarden_item_id'))
+        self.assertEqual(logins, [('hotburn@netconnect.co.zw', 'bw-123'), ('owner@client.co.zw', 'bw-456')])
+        self.assertEqual(summary.extra_logins, 1)
+        self.assertTrue(any('extra logins' in n for n in summary.notes))
+
+    def test_same_dish_twice_from_older_harvest_files(self):
+        second = dict(MINI_ROW, email='owner@client.co.zw', bitwarden_item_id='bw-456')
+        summary = run_import(harvest_csv(MINI_ROW, second))
+        self.assertEqual(StarlinkDevice.objects.count(), 1)
+        self.assertEqual(StarlinkAccount.objects.get().credentials.count(), 2)
+        self.assertEqual(summary.skipped_duplicate, 0)
