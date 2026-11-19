@@ -92,9 +92,21 @@
                     <i data-lucide="bar-chart-3"></i>
                     <span>Analytics</span>
                 </a>
+                <a href="{% url 'starlink_inbox' %}" class="nav-item {% if request.resolver_match.url_name == 'starlink_inbox' %}active{% endif %}">
+                    <i data-lucide="inbox"></i>
+                    <span>Starlink Inbox{% if starlink_inbox_count %} <strong style="background: var(--color-primary); color: #fff; border-radius: 999px; padding: 0 0.45rem; font-size: 0.7rem; margin-left: 0.25rem;">{{ starlink_inbox_count }}</strong>{% endif %}</span>
+                </a>
+                <a href="{% url 'plans_page' %}" class="nav-item {% if request.resolver_match.url_name == 'plans_page' %}active{% endif %}">
+                    <i data-lucide="tags"></i>
+                    <span>Plans</span>
+                </a>
                 <a href="{% url 'audit_logs_page' %}" class="nav-item {% if request.resolver_match.url_name == 'audit_logs_page' %}active{% endif %}">
                     <i data-lucide="history"></i>
                     <span>Audit Logs</span>
+                </a>
+                <a href="{% url 'archived_items' %}" class="nav-item {% if request.resolver_match.url_name == 'archived_items' %}active{% endif %}">
+                    <i data-lucide="archive"></i>
+                    <span>Archived</span>
                 </a>
                 <a href="{% url 'import_export_page' %}" class="nav-item {% if request.resolver_match.url_name == 'import_export_page' %}active{% endif %}">
                     <i data-lucide="arrow-left-right"></i>
@@ -156,9 +168,9 @@
                             </button>
                         </form>
                     </div>
-                    <button class="btn btn-secondary" onclick="goToDashboardAndOpen('starlink')">
+                    <button class="btn btn-secondary" onclick="openAddKitModal()">
                         <i data-lucide="satellite"></i>
-                        <span>Add Unassigned Kit</span>
+                        <span>Add Kit</span>
                     </button>
                     <button class="btn btn-primary" onclick="goToDashboardAndOpen('client')">
                         <i data-lucide="plus-circle"></i>
@@ -294,6 +306,31 @@
         </div>
     </div>
 
+    <!-- Shared Archive Reason Modal -->
+    <div class="modal-overlay" id="archiveReasonModal">
+        <div class="modal-card" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>Archive Item</h3>
+                <button class="btn-close" onclick="closeModal('archiveReasonModal')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="archiveReasonMessage" style="color: var(--color-text-secondary); line-height: 1.5; margin: 0 0 1rem;"></p>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="archiveReasonInput">Reason for archiving <span style="color: var(--color-danger);">*</span></label>
+                    <textarea id="archiveReasonInput" rows="3" placeholder="e.g. Client cancelled service, device faulty and returned..."></textarea>
+                    <p id="archiveReasonError" style="color: var(--color-danger); font-size: 0.75rem; margin-top: 0.35rem; display:none;">A reason is required to archive this item.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('archiveReasonModal')">Cancel</button>
+                <button type="button" id="confirmArchiveBtn" class="btn btn-danger">
+                    <i data-lucide="archive" style="width:14px; height:14px;"></i>
+                    <span>Archive</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Global Javascript -->
     <script>
         const UNDO_AVAILABLE = {% if request.session.undo_stack %}true{% else %}false{% endif %};
@@ -360,16 +397,13 @@
             }
         }
 
-        // "Add New Client" / "Add Unassigned Kit" live in the dashboard's modals.
-        // From other pages (client detail, analytics, audit logs) there is nothing
-        // to open here, so hop to the dashboard first and open it from there.
+        // "Add New Client" lives in the dashboard's modals. From other pages
+        // (client detail, analytics, audit logs) there is nothing to open here,
+        // so hop to the dashboard first and open it from there.
+        // (The Add Kit modal is included on every page - see partials/add_kit_modal.html.)
         function goToDashboardAndOpen(kind) {
             if (kind === 'client' && document.getElementById('addClientModal')) {
                 openModal('addClientModal');
-                return;
-            }
-            if (kind === 'starlink' && typeof openAddStarlinkModal === 'function') {
-                openAddStarlinkModal('unassigned', 'Unassigned Hardware');
                 return;
             }
             window.location.href = "{% url 'dashboard' %}?open=" + kind;
@@ -404,6 +438,49 @@
                     if (_pendingDeleteForm) {
                         _pendingDeleteForm.submit();
                         _pendingDeleteForm = null;
+                    }
+                });
+            }
+        });
+
+        // Shared "reason required" modal for archive forms. Wire a form up with
+        // onsubmit="return confirmArchive(this, 'label of the thing being archived');"
+        // The form must contain a hidden <input name="reason"> that gets filled in
+        // right before the real submit.
+        let _pendingArchiveForm = null;
+
+        function confirmArchive(form, itemLabel) {
+            _pendingArchiveForm = form;
+            const msgEl = document.getElementById('archiveReasonMessage');
+            if (msgEl) {
+                msgEl.textContent = `Archiving "${itemLabel}" hides it from normal lists. It can be restored anytime from the Archived page.`;
+            }
+            const input = document.getElementById('archiveReasonInput');
+            if (input) input.value = '';
+            const errEl = document.getElementById('archiveReasonError');
+            if (errEl) errEl.style.display = 'none';
+            openModal('archiveReasonModal');
+            return false; // block the native submit; the modal's Archive button submits it
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const confirmArchiveBtn = document.getElementById('confirmArchiveBtn');
+            if (confirmArchiveBtn) {
+                confirmArchiveBtn.addEventListener('click', () => {
+                    const input = document.getElementById('archiveReasonInput');
+                    const reason = input ? input.value.trim() : '';
+                    if (!reason) {
+                        const errEl = document.getElementById('archiveReasonError');
+                        if (errEl) errEl.style.display = 'block';
+                        if (input) input.focus();
+                        return;
+                    }
+                    if (_pendingArchiveForm) {
+                        const reasonField = _pendingArchiveForm.querySelector('input[name="reason"]');
+                        if (reasonField) reasonField.value = reason;
+                        closeModal('archiveReasonModal');
+                        _pendingArchiveForm.submit();
+                        _pendingArchiveForm = null;
                     }
                 });
             }
@@ -516,6 +593,22 @@
             }, 3000);
         }
     </script>
+    {% if user.is_authenticated %}{% include 'tracker/partials/add_kit_modal.html' %}{% endif %}
+    <script>
+        // Passwords are shown as dots; click to show / hide (copy buttons still copy the real value).
+        function revealSecret(el) {
+            const secret = el.dataset.secret || '';
+            if (!secret) return;
+            if (el.dataset.shown === '1') {
+                el.textContent = '••••••••';
+                el.dataset.shown = '0';
+            } else {
+                el.textContent = secret;
+                el.dataset.shown = '1';
+            }
+        }
+    </script>
+    <style>.password-masked[data-secret] { cursor: pointer; }</style>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

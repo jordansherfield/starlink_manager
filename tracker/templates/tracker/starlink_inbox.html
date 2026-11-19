@@ -1,0 +1,244 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Starlink Inbox - StarlinkOps{% endblock %}
+{% block header_title %}Starlink Inbox{% endblock %}
+{% block header_subtitle %}What the latest Starlink harvest needs from you: new units to assign, status mismatches, installs waiting, and money owed.{% endblock %}
+
+{% block extra_head %}
+<style>
+    .compact-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.8rem;
+    }
+    .compact-table th {
+        background-color: var(--color-bg-panel);
+        color: var(--color-text-secondary);
+        padding: 0.6rem 0.75rem;
+        font-weight: 600;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .compact-table td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--color-border);
+        color: var(--color-text-primary);
+        vertical-align: middle;
+    }
+    .compact-table tr.account-row-hover:hover {
+        background-color: rgba(168, 85, 247, 0.04);
+    }
+    .inbox-panel {
+        background-color: var(--color-bg-panel);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .inbox-panel h3 {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+    }
+    .inbox-count {
+        background-color: var(--color-bg-input);
+        border: 1px solid var(--color-border);
+        border-radius: 999px;
+        padding: 0 0.55rem;
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+    }
+    .assign-card {
+        background-color: var(--color-bg-input);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .assign-facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 1.25rem;
+        font-size: 0.78rem;
+        color: var(--color-text-secondary);
+        margin-bottom: 0.75rem;
+    }
+    .assign-facts strong { color: var(--color-text-primary, inherit); }
+    .assign-row {
+        display: grid;
+        grid-template-columns: minmax(180px, 2fr) minmax(160px, 2fr) minmax(120px, 1fr) minmax(140px, 1fr) auto;
+        gap: 0.6rem;
+        align-items: end;
+    }
+    @media (max-width: 900px) {
+        .assign-row { grid-template-columns: 1fr 1fr; }
+    }
+    .assign-row label {
+        font-size: 0.7rem;
+        color: var(--color-text-muted);
+        display: block;
+        margin-bottom: 0.2rem;
+    }
+    .assign-row .new-client { display: flex; gap: 0.4rem; }
+    .assign-row .new-client input { flex: 2; min-width: 0; }
+    .assign-row .new-client select { flex: 1; min-width: 0; }
+    .assign-row .form-group label { font-size: 0.7rem; color: var(--color-text-muted); margin-bottom: 0.2rem; }
+    .suggest { color: var(--color-success); font-size: 0.72rem; }
+    .inbox-empty { color: var(--color-text-muted); font-size: 0.85rem; margin: 0; }
+    .waiting-long { color: var(--color-danger); font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- 1. New from Starlink -->
+<div class="inbox-panel">
+    <h3><i data-lucide="inbox"></i> New from Starlink <span class="inbox-count">{{ new_units|length }}</span></h3>
+    {% if new_units %}
+        <p style="font-size:0.8rem; color:var(--color-text-secondary); margin-top:0;">
+            These dishes are on a Starlink account but not linked to a client yet. Everything else is already filled in from Starlink - pick the client and assign.
+        </p>
+        {% for d in new_units %}
+        <div class="assign-card">
+            <div class="assign-facts">
+                <span><i data-lucide="satellite-dish" style="width:13px; height:13px; vertical-align:-2px;"></i> <strong><code>{{ d.kit_number }}</code></strong></span>
+                <span>{{ d.get_model_display }}</span>
+                {% if d.account %}<span>Account <code>{{ d.account.account_number }}</code></span>{% endif %}
+                {% if d.starlink_nickname %}<span>Starlink name: <strong>{{ d.starlink_nickname }}</strong></span>{% endif %}
+                {% if d.service_address %}<span><i data-lucide="map-pin" style="width:13px; height:13px; vertical-align:-2px;"></i> {{ d.service_address }}</span>{% endif %}
+                {% if d.plan %}<span>{{ d.plan.name }}{% if d.effective_price is not None %} · {{ d.plan.currency }} {{ d.effective_price }}{% endif %}</span>{% endif %}
+                <span>Starlink: {% if d.starlink_service_active %}<span style="color:var(--color-success);">active</span>{% elif d.starlink_service_active is False %}<span style="color:var(--color-danger);">inactive</span>{% else %}unknown{% endif %}</span>
+            </div>
+            <form action="{% url 'assign_starlink' d.id %}" method="post" class="assign-row">
+                {% csrf_token %}
+                <div class="form-group" style="margin:0;">
+                    <label for="assign_{{ d.id }}_client">Existing client {% if d.suggested_client %}<span class="suggest">· suggested from the account</span>{% endif %}</label>
+                    <select id="assign_{{ d.id }}_client" name="client_id">
+                        <option value="">-- choose --</option>
+                        {% for c in clients %}
+                            <option value="{{ c.id }}" {% if d.suggested_client and d.suggested_client.id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label>…or a new client</label>
+                    <div class="new-client">
+                        <input type="text" name="new_client_name" placeholder="New client name" value="">
+                        <select name="new_client_company" title="Company">
+                            <option value="">Company…</option>
+                            {% for value, label in company_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label for="assign_{{ d.id }}_loc">Location name</label>
+                    <input type="text" id="assign_{{ d.id }}_loc" name="location_name" value="{% if d.location_name != d.kit_number %}{{ d.location_name }}{% endif %}" placeholder="Defaults to the client">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label for="assign_{{ d.id }}_status">Status</label>
+                    <select id="assign_{{ d.id }}_status" name="status">
+                        {% for value, label in status_choices %}<option value="{{ value }}" {% if d.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary" style="font-size:0.85rem; padding:0.5rem 1rem; white-space:nowrap;">
+                        <i data-lucide="user-check"></i> Assign
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="inbox-empty">Nothing waiting. New dishes appear here after you import a Starlink harvest on <a href="{% url 'import_export_page' %}">Import / Export</a>.</p>
+    {% endif %}
+</div>
+
+<!-- 2. Status mismatches -->
+<div class="inbox-panel">
+    <h3><i data-lucide="alert-triangle"></i> Status doesn't match Starlink <span class="inbox-count">{{ mismatches|length }}</span></h3>
+    {% if mismatches %}
+    <div class="table-container">
+        <table class="compact-table">
+            <thead><tr><th>Client</th><th>Kit</th><th>App status</th><th>Issue</th><th></th></tr></thead>
+            <tbody>
+                {% for d in mismatches %}
+                <tr class="account-row-hover">
+                    <td>{% if d.client %}{{ d.client.name }}{% else %}<span style="color:var(--color-text-muted);">Unassigned</span>{% endif %}</td>
+                    <td><code>{{ d.kit_number }}</code></td>
+                    <td><span class="status-badge status-{{ d.status|slugify }}" style="font-size:0.7rem;">{{ d.status }}</span></td>
+                    <td style="white-space:normal;">{{ d.issue }}</td>
+                    <td style="text-align:right;">{% if d.client %}<a class="btn btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" href="{% url 'client_detail' d.client.id %}#sl-card-{{ d.id }}">Open</a>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p class="inbox-empty">All unit statuses agree with Starlink (as of the last harvest).</p>
+    {% endif %}
+</div>
+
+<!-- 3. Install queue -->
+<div class="inbox-panel">
+    <h3><i data-lucide="hard-hat"></i> Waiting to be installed <span class="inbox-count">{{ install_queue|length }}</span></h3>
+    {% if install_queue %}
+    <div class="table-container">
+        <table class="compact-table">
+            <thead><tr><th>Client</th><th>Kit</th><th>Model</th><th>Location</th><th>Waiting</th><th></th></tr></thead>
+            <tbody>
+                {% for d in install_queue %}
+                <tr class="account-row-hover">
+                    <td>{% if d.client %}{{ d.client.name }}{% else %}<span style="color:var(--color-text-muted);">Unassigned</span>{% endif %}</td>
+                    <td><code>{{ d.kit_number }}</code></td>
+                    <td>{{ d.get_model_display }}</td>
+                    <td>{{ d.location_name }}</td>
+                    <td>{% if d.days_in_status is not None %}<span class="{% if d.days_in_status >= 14 %}waiting-long{% endif %}">{{ d.days_in_status }} day{{ d.days_in_status|pluralize }}</span>{% else %}<span style="color:var(--color-text-muted);">unknown</span>{% endif %}</td>
+                    <td style="text-align:right;">{% if d.client %}<a class="btn btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" href="{% url 'client_detail' d.client.id %}#sl-card-{{ d.id }}">Open</a>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p style="font-size:0.72rem; color:var(--color-text-muted); margin:0.75rem 0 0;">Setting a unit to Running records today as its install date (editable on the unit).</p>
+    {% else %}
+        <p class="inbox-empty">No units waiting to be installed.</p>
+    {% endif %}
+</div>
+
+<!-- 4. Billing -->
+<div class="inbox-panel">
+    <h3><i data-lucide="receipt"></i> Billing to check <span class="inbox-count">{{ billing_count }}</span></h3>
+    {% if owing or bill_mismatch %}
+    <div class="table-container">
+        <table class="compact-table">
+            <thead><tr><th>Account</th><th>Client</th><th>Issue</th><th style="text-align:right;">Amount</th><th>Synced</th></tr></thead>
+            <tbody>
+                {% for acc in owing %}
+                <tr class="account-row-hover">
+                    <td><code>{{ acc.account_number }}</code></td>
+                    <td>{{ acc.client.name|default:"—" }}</td>
+                    <td>Outstanding balance on Starlink</td>
+                    <td style="text-align:right; color:var(--color-danger);"><strong>${{ acc.balance_due }}</strong></td>
+                    <td style="color:var(--color-text-muted);">{{ acc.starlink_synced_at|date:"j M H:i"|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+                {% for acc in bill_mismatch %}
+                <tr class="account-row-hover">
+                    <td><code>{{ acc.account_number }}</code></td>
+                    <td>{{ acc.client.name|default:"—" }}</td>
+                    <td>Starlink bills ${{ acc.cost_to_us }}, plans/overrides add up to ${{ acc.expected }} - set a <a href="{% url 'plans_page' %}">price override</a> or fix the plan price</td>
+                    <td style="text-align:right;">${{ acc.cost_to_us }}</td>
+                    <td style="color:var(--color-text-muted);">{{ acc.starlink_synced_at|date:"j M H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p class="inbox-empty">No balances owed, and every synced account's bill matches its plans.</p>
+    {% endif %}
+</div>
+{% endblock %}

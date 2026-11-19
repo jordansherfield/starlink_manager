@@ -269,6 +269,13 @@
                                             <i data-lucide="check-square"></i>
                                         </button>
                                     </form>
+                                    <form action="{% url 'archive_account' acc.id %}" method="post" style="display: inline;" onsubmit="return confirmArchive(this, 'Account {{ acc.account_number|escapejs }}');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="reason">
+                                        <button type="submit" class="btn-icon" title="Archive Account">
+                                            <i data-lucide="archive"></i>
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                             
@@ -286,6 +293,33 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                {% with plan_cost=acc.plan_cost %}
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Expected From Plans</label>
+                                        <div class="spec-badge" style="display:inline-block; margin-top:0.5rem; background-color: var(--color-bg-input); padding: 0.5rem 1rem; width: 100%; border: 1px solid var(--color-border); border-radius: 4px;">
+                                            {% if plan_cost is not None %}
+                                                <strong>${{ plan_cost }}</strong> / month
+                                                {% if plan_cost != acc.cost_to_us %}
+                                                    <span style="color: var(--color-danger); margin-left:0.5rem;" title="Plans and overrides on this account's units don't add up to Cost to Us">≠ Cost to Us ${{ acc.cost_to_us }}</span>
+                                                {% else %}
+                                                    <span style="color: var(--color-success); margin-left:0.5rem;">matches Cost to Us</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span style="color: var(--color-text-muted);">Give every unit on this account a plan with a price to compare</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Starlink Balance Due</label>
+                                        <div class="spec-badge" style="display:inline-block; margin-top:0.5rem; background-color: var(--color-bg-input); padding: 0.5rem 1rem; width: 100%; border: 1px solid var(--color-border); border-radius: 4px; {% if acc.balance_due %}color: var(--color-danger);{% endif %}">
+                                            {% if acc.balance_due is not None %}${{ acc.balance_due }}{% else %}—{% endif %}
+                                            {% if acc.starlink_synced_at %}<span style="color: var(--color-text-muted); font-size:0.75rem; margin-left:0.5rem;">synced {{ acc.starlink_synced_at|date:"j M Y H:i" }}</span>{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endwith %}
 
                                 <div class="form-grid">
                                     <div class="form-group">
@@ -318,15 +352,16 @@
                             <div style="margin-top: 1.5rem; border-top: 1px solid var(--color-border); padding-top: 1rem;">
                                 <h4 style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 0.75rem; display:flex; align-items:center; gap:0.25rem;"><i data-lucide="lock" style="width:14px; height:14px; color:var(--color-primary)"></i> Associated Account Credentials</h4>
                                 
-                                {% if acc.credentials.all %}
+                                {% if acc.active_credentials %}
                                 <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                                    {% for cred in acc.credentials.all %}
+                                    {% for cred in acc.active_credentials %}
                                     <div style="background-color: var(--color-bg-input); border: 1px solid var(--color-border); padding: 0.75rem; border-radius: 6px; display:flex; justify-content:space-between; align-items:center;">
                                         <div style="font-size:0.75rem;">
                                             <span style="font-weight:600; color:var(--color-primary);">{{ cred.label }}</span>
                                             <div style="margin-top:0.25rem; display:flex; flex-direction:column; gap:0.15rem; color:var(--color-text-secondary);">
                                                 <span>User: <code>{{ cred.username }}</code></span>
-                                                <span>Pass: <code>{{ cred.password }}</code></span>
+                                                <span>Pass: <code class="password-masked" data-secret="{{ cred.password }}" onclick="revealSecret(this)" title="Click to show">{% if cred.password %}••••••••{% else %}in Bitwarden{% endif %}</code></span>
+                                                <span>{% if cred.bitwarden_url %}<a href="{{ cred.bitwarden_url }}" target="_blank" rel="noopener" style="font-size:0.7rem;">Open in Bitwarden</a>{% elif cred.bitwarden_item_id %}<span style="font-size:0.7rem; color:var(--color-text-muted);">Bitwarden item <code>{{ cred.bitwarden_item_id|truncatechars:12 }}</code></span>{% endif %}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -353,16 +388,25 @@
                 <div class="card-list">
                     {% if client.associated_accounts %}
                         {% for acc in client.associated_accounts %}
-                            {% for cred in acc.credentials.all %}
+                            {% for cred in acc.active_credentials %}
                             <div class="item-card">
                                 <div class="item-card-header">
                                     <span class="item-card-title"><i data-lucide="key"></i> {{ cred.label }} (Account: {{ acc.account_number }})</span>
-                                    <form action="{% url 'delete_credential' cred.id %}" method="post" onsubmit="return confirmDelete(this, 'Permanently delete the \'{{ cred.label|escapejs }}\' login ({{ cred.username|escapejs }}) for account {{ acc.account_number|escapejs }}? You can Undo this right after.');">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-logout" style="padding: 0.25rem; height: auto;" title="Delete Credential">
-                                            <i data-lucide="trash-2" style="color: var(--color-danger); width: 16px; height: 16px;"></i>
-                                        </button>
-                                    </form>
+                                    <div style="display: flex; gap: 0.35rem; align-items: center;">
+                                        <form action="{% url 'archive_credential' cred.id %}" method="post" onsubmit="return confirmArchive(this, '{{ cred.label|escapejs }} ({{ cred.username|escapejs }})');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="reason">
+                                            <button type="submit" class="btn btn-logout" style="padding: 0.25rem; height: auto;" title="Archive Credential">
+                                                <i data-lucide="archive" style="color: var(--color-text-secondary); width: 16px; height: 16px;"></i>
+                                            </button>
+                                        </form>
+                                        <form action="{% url 'delete_credential' cred.id %}" method="post" onsubmit="return confirmDelete(this, 'Permanently delete the \'{{ cred.label|escapejs }}\' login ({{ cred.username|escapejs }}) for account {{ acc.account_number|escapejs }}? You can Undo this right after.');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-logout" style="padding: 0.25rem; height: auto;" title="Delete Credential">
+                                                <i data-lucide="trash-2" style="color: var(--color-danger); width: 16px; height: 16px;"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                                 
                                 <form action="{% url 'update_credential' cred.id %}" method="post">
@@ -393,9 +437,9 @@
                                             </div>
                                         </div>
                                         <div class="form-group">
-                                            <label for="cred_{{ cred.id }}_password">Password *</label>
+                                            <label for="cred_{{ cred.id }}_password">Password (optional)</label>
                                             <div style="display: flex; gap: 0.5rem;">
-                                                <input type="password" id="cred_{{ cred.id }}_password" name="password" value="{{ cred.password }}" required style="flex-grow: 1;">
+                                                <input type="password" id="cred_{{ cred.id }}_password" name="password" value="{{ cred.password }}" style="flex-grow: 1;" placeholder="Kept in Bitwarden">
                                                 <button type="button" class="btn btn-secondaryToggle" onclick="togglePasswordVisibility('cred_{{ cred.id }}_password')" title="Toggle Visibility" style="padding: 0 0.75rem; border: 1px solid var(--color-border); background: var(--color-bg-input); border-radius: 4px; color: var(--color-text-secondary); cursor: pointer;">
                                                     <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
                                                 </button>
@@ -404,6 +448,11 @@
                                                 </button>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="cred_{{ cred.id }}_bw">Bitwarden Item ID</label>
+                                        <input type="text" id="cred_{{ cred.id }}_bw" name="bitwarden_item_id" value="{{ cred.bitwarden_item_id|default:'' }}" placeholder="Filled in by the Starlink harvest">
                                     </div>
 
                                     <div class="form-group">
@@ -462,8 +511,8 @@
                                     <input type="text" id="new_cred_user" name="username" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="new_cred_pass">Password *</label>
-                                    <input type="text" id="new_cred_pass" name="password" required>
+                                    <label for="new_cred_pass">Password (optional)</label>
+                                    <input type="text" id="new_cred_pass" name="password" placeholder="Leave blank if it's in Bitwarden">
                                 </div>
                             </div>
 
@@ -496,6 +545,14 @@
                                 <span class="item-card-title">
                                     <i data-lucide="satellite-dish"></i> Kit: <code>{{ sl.kit_number }}</code>
                                     <span class="status-badge status-{{ sl.status|slugify }}" style="font-size: 0.7rem; margin-left: 0.5rem;">{{ sl.status }}</span>
+                                    {% if sl.starlink_service_active is False %}
+                                    <span class="status-badge status-hardware-fault" style="font-size: 0.7rem; margin-left: 0.5rem;" title="At the last Starlink sync">Starlink inactive</span>
+                                    {% endif %}
+                                    {% if sl.plan %}
+                                    <span class="spec-badge" style="font-size: 0.7rem; margin-left: 0.5rem;" title="Service plan">
+                                        {{ sl.plan.name }}{% if sl.effective_price is not None %} · {{ sl.plan.currency }} {{ sl.effective_price }}{% endif %}{% if sl.price_override is not None %} (override){% endif %}
+                                    </span>
+                                    {% endif %}
                                 </span>
                                 <div style="display: flex; gap: 0.5rem;">
                                     {% if sl.latitude and sl.longitude %}
@@ -503,6 +560,13 @@
                                             <i data-lucide="map-pin" style="width: 14px; height: 14px;"></i> Show
                                         </button>
                                     {% endif %}
+                                    <form action="{% url 'archive_starlink' sl.id %}" method="post" onsubmit="return confirmArchive(this, 'Starlink kit {{ sl.kit_number|escapejs }}');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="reason">
+                                        <button type="submit" class="btn btn-logout" style="padding: 0.25rem; height: auto;" title="Archive Device">
+                                            <i data-lucide="archive" style="color: var(--color-text-secondary); width: 16px; height: 16px;"></i>
+                                        </button>
+                                    </form>
                                     <form action="{% url 'delete_starlink' sl.id %}" method="post" onsubmit="return confirmDelete(this, 'Permanently delete Starlink kit \'{{ sl.kit_number|escapejs }}\' at {{ sl.location_name|escapejs }}? Its location, Wi-Fi, and history will be removed. You can Undo this right after.');">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-logout" style="padding: 0.25rem; height: auto;" title="Delete Device">
@@ -565,6 +629,59 @@
                                     <div class="form-group">
                                         <label for="sl_{{ sl.id }}_wifi_pass">Wi-Fi Password</label>
                                         <input type="text" id="sl_{{ sl.id }}_wifi_pass" name="wifi_password" value="{{ sl.wifi_password|default:'' }}">
+                                    </div>
+                                </div>
+
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="sl_{{ sl.id }}_plan">Service Plan</label>
+                                        <select id="sl_{{ sl.id }}_plan" name="plan_id">
+                                            <option value="">-- No plan --</option>
+                                            {% for p in all_plans %}
+                                                {% if p.is_active or sl.plan_id == p.id %}
+                                                <option value="{{ p.id }}" {% if sl.plan_id == p.id %}selected{% endif %}>{{ p.name }}{% if p.price is not None %} ({{ p.currency }} {{ p.price }}){% endif %}{% if not p.is_active %} - inactive{% endif %}</option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </select>
+                                        <small style="color:var(--color-text-muted); font-size:0.7rem;"><a href="{% url 'plans_page' %}">Manage plans &amp; prices</a></small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="sl_{{ sl.id }}_override">Price Override ({% if sl.plan %}{{ sl.plan.currency }}{% else %}USD{% endif %})</label>
+                                        <input type="number" step="0.01" min="0" id="sl_{{ sl.id }}_override" name="price_override" value="{{ sl.price_override|default_if_none:'' }}" placeholder="{% if sl.plan and sl.plan.price is not None %}Plan price {{ sl.plan.price }} - leave blank to use it{% else %}Leave blank to use the plan price{% endif %}">
+                                        <small style="color:var(--color-text-muted); font-size:0.7rem;">Only when Starlink charges this service a different amount.</small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="sl_{{ sl.id }}_override_reason">Override Reason</label>
+                                    <input type="text" id="sl_{{ sl.id }}_override_reason" name="price_override_reason" value="{{ sl.price_override_reason|default:'' }}" placeholder="e.g. Starlink retention discount until March">
+                                </div>
+
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="sl_{{ sl.id }}_sline">Starlink Service Line</label>
+                                        <input type="text" id="sl_{{ sl.id }}_sline" name="service_line_number" value="{{ sl.service_line_number|default:'' }}" placeholder="SL-...">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="sl_{{ sl.id }}_nick">Starlink Nickname</label>
+                                        <input type="text" id="sl_{{ sl.id }}_nick" name="starlink_nickname" value="{{ sl.starlink_nickname|default:'' }}">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="sl_{{ sl.id }}_saddr">Starlink Service Address</label>
+                                    <input type="text" id="sl_{{ sl.id }}_saddr" name="service_address" value="{{ sl.service_address|default:'' }}">
+                                </div>
+
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="sl_{{ sl.id }}_installed_on">Installed On</label>
+                                        <input type="date" id="sl_{{ sl.id }}_installed_on" name="installed_on" value="{{ sl.installed_on|date:'Y-m-d' }}">
+                                        <small style="color:var(--color-text-muted); font-size:0.7rem;">Filled in automatically when the status changes to Running.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="sl_{{ sl.id }}_installed_by">Installed By</label>
+                                        <input type="text" id="sl_{{ sl.id }}_installed_by" name="installed_by" value="{{ sl.installed_by|default:'' }}" placeholder="Technician">
                                     </div>
                                 </div>
 
@@ -651,105 +768,10 @@
                         <p class="no-records-msg">No Starlink terminals assigned to this client.</p>
                     {% endif %}
 
-                    <!-- Form to ADD Starlink device -->
-                    <div class="item-card" style="border-style: dashed; background-color: transparent;" id="add-sl-card">
-                        <h4 style="margin-bottom: 1rem; color: var(--color-text-secondary);"><i data-lucide="plus-circle"></i> Add / Deploy Starlink Unit</h4>
-                        <form action="{% url 'add_starlink' %}" method="post">
-                            {% csrf_token %}
-                            <input type="hidden" name="client_id" value="{{ client.id }}">
-
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="new_sl_kit">Kit Number *</label>
-                                    <input type="text" id="new_sl_kit" name="kit_number" required placeholder="e.g. KIT001">
-                                </div>
-                                <div class="form-group">
-                                    <label for="new_sl_loc">Location Name *</label>
-                                    <input type="text" id="new_sl_loc" name="location_name" required placeholder="e.g. Roof Top">
-                                </div>
-                            </div>
-
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="new_sl_model">Starlink Model</label>
-                                    <select id="new_sl_model" name="model">
-                                        <option value="Gen3">Gen 3</option>
-                                        <option value="Mini">Mini</option>
-                                        <option value="gen2">Gen 2</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="new_sl_status">Status</label>
-                                    <select id="new_sl_status" name="status">
-                                        <option value="To install">To install</option>
-                                        <option value="Running">Running</option>
-                                        <option value="Deactivated">Deactivated</option>
-                                        <option value="Hardware fault">Hardware fault</option>
-                                        <option value="Account issue">Account issue</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="new_sl_starlink_id">Starlink ID</label>
-                                    <input type="text" id="new_sl_starlink_id" name="starlink_id">
-                                </div>
-                                <div class="form-group">
-                                    <label for="new_sl_serial">Serial Number</label>
-                                    <input type="text" id="new_sl_serial" name="serial_number">
-                                </div>
-                            </div>
-
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="new_sl_wifi_name">Wi-Fi Name (SSID)</label>
-                                    <input type="text" id="new_sl_wifi_name" name="wifi_name">
-                                </div>
-                                <div class="form-group">
-                                    <label for="new_sl_wifi_pass">Wi-Fi Password</label>
-                                    <input type="text" id="new_sl_wifi_pass" name="wifi_password">
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="new_sl_account">Link Billing Account</label>
-                                <select id="new_sl_account" name="account_id">
-                                    <option value="unlinked">-- Unlinked (No Account) --</option>
-                                    {% for acc in client.associated_accounts %}
-                                        <option value="{{ acc.id }}">{{ acc.account_number }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="new_sl_lat">Latitude</label>
-                                    <input type="number" step="any" id="new_sl_lat" name="latitude">
-                                </div>
-                                <div class="form-group">
-                                    <label for="new_sl_lng">Longitude</label>
-                                    <input type="number" step="any" id="new_sl_lng" name="longitude">
-                                </div>
-                            </div>
-
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; gap:1rem; flex-wrap:wrap;">
-                                <button type="button" class="btn btn-secondary" onclick="enterGpsSelection('new_sl_lat', 'new_sl_lng', 'New Unit', 'add-sl-card')" style="border-color: var(--color-primary); display:flex; align-items:center; gap:0.5rem;">
-                                    <i data-lucide="map-pin" style="color:var(--color-primary);"></i> Select GPS Coordinates on Map
-                                </button>
-                                <span style="font-size:0.75rem; color:var(--color-text-muted);">Sets GPS coordinates by clicking anywhere on the map pane.</span>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="new_sl_notes">Notes</label>
-                                <textarea id="new_sl_notes" name="notes" rows="2"></textarea>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary">
-                                <i data-lucide="plus"></i> Add Starlink Unit
-                            </button>
-                        </form>
-                    </div>
+                    <!-- Adding a kit uses the shared Add Kit modal (partials/add_kit_modal.html) -->
+                    <button type="button" class="item-card ak-add-tile" onclick="openAddKitModal({clientId: {{ client.id }}, clientName: '{{ client.name|escapejs }}'})">
+                        <i data-lucide="plus-circle"></i> Add Kit for {{ client.name }}
+                    </button>
                 </div>
             </div>
         </div>

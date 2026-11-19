@@ -4,7 +4,7 @@ import decimal
 from django.apps import apps
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
-from .models import AuditLog
+from .models import AuditLog, REDACTED
 
 def parse_related_id(val):
     if not val:
@@ -94,6 +94,8 @@ def revert_log_entry(log):
                     # logged onto a StarlinkDevice) - no real field to restore.
                     continue
                 old_val_str = vals[0]
+                if old_val_str == REDACTED:
+                    continue        # passwords aren't kept in the log - leave the current value
                 restored_val = restore_field_value(field, old_val_str)
                 setattr(obj, field_name, restored_val)
             obj.save()
@@ -109,6 +111,8 @@ def revert_log_entry(log):
             except FieldDoesNotExist:
                 continue
             old_val_str = vals[0]
+            if old_val_str == REDACTED:
+                continue            # re-created without the password (it lives in Bitwarden)
             restored_val = restore_field_value(field, old_val_str)
             field_values[field_name] = restored_val
         
@@ -129,6 +133,8 @@ def redo_log_entry(log):
             except FieldDoesNotExist:
                 continue
             new_val_str = vals[1]
+            if new_val_str == REDACTED:
+                continue
             restored_val = restore_field_value(field, new_val_str)
             field_values[field_name] = restored_val
 
@@ -145,6 +151,8 @@ def redo_log_entry(log):
                 except FieldDoesNotExist:
                     continue
                 new_val_str = vals[1]
+                if new_val_str == REDACTED:
+                    continue
                 restored_val = restore_field_value(field, new_val_str)
                 setattr(obj, field_name, restored_val)
             obj.save()

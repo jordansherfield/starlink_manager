@@ -1,0 +1,230 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Archived Items - StarlinkOps{% endblock %}
+{% block header_title %}Archived Items{% endblock %}
+{% block header_subtitle %}Credentials, billing accounts, and Starlink kits that have been archived (hidden, not deleted) — restore any of them below{% endblock %}
+
+{% block extra_head %}
+<style>
+    .archive-panel {
+        background-color: var(--color-bg-panel);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .archive-reason-cell {
+        max-width: 320px;
+        color: var(--color-text-secondary);
+        white-space: normal;
+    }
+
+    .empty-archive-msg {
+        padding: 3rem 1rem;
+        text-align: center;
+        color: var(--color-text-muted);
+    }
+
+    .empty-archive-msg i {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        color: var(--color-success);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="archive-panel">
+    <div class="tabs-container">
+        <button class="tab-btn active" onclick="switchArchiveTab('archived-credentials-tab')">
+            <i data-lucide="lock" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+            Credentials ({{ archived_credentials|length }})
+        </button>
+        <button class="tab-btn" onclick="switchArchiveTab('archived-accounts-tab')">
+            <i data-lucide="receipt" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+            Billing Accounts ({{ archived_accounts|length }})
+        </button>
+        <button class="tab-btn" onclick="switchArchiveTab('archived-starlinks-tab')">
+            <i data-lucide="satellite" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+            Starlink Kits ({{ archived_starlinks|length }})
+        </button>
+    </div>
+
+    <!-- Archived Credentials -->
+    <div id="archived-credentials-tab" class="tab-content active" style="margin-top: 1.25rem;">
+        {% if archived_credentials %}
+        <div class="table-container">
+            <table class="compact-table">
+                <thead>
+                    <tr>
+                        <th>Label</th>
+                        <th>Username</th>
+                        <th>Account</th>
+                        <th>Archived</th>
+                        <th>Reason</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cred in archived_credentials %}
+                    <tr class="account-row-hover">
+                        <td>{{ cred.label }}</td>
+                        <td><code>{{ cred.username }}</code></td>
+                        <td>
+                            {% if cred.account %}
+                                <code>{{ cred.account.account_number }}</code>{% if cred.account.is_archived %} <span class="status-badge status-hardware-fault" style="font-size:0.65rem;">Archived</span>{% endif %}
+                            {% else %}
+                                <span style="color: var(--color-text-muted);">No account</span>
+                            {% endif %}
+                        </td>
+                        <td style="white-space:nowrap; color: var(--color-text-muted);">{{ cred.archived_at|date:"M d, Y H:i" }}</td>
+                        <td class="archive-reason-cell">{{ cred.archived_reason }}</td>
+                        <td style="text-align: right;">
+                            <form action="{% url 'unarchive_credential' cred.id %}" method="post" style="display:inline-block;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-table-action">
+                                    <i data-lucide="archive-restore" style="width:14px; height:14px; display:inline-block; vertical-align:middle;"></i>
+                                    <span style="display:inline-block; vertical-align:middle;">Restore</span>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-archive-msg">
+            <i data-lucide="shield-check"></i>
+            <h3>No Archived Credentials</h3>
+            <p>Archived logins will show up here.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Archived Accounts -->
+    <div id="archived-accounts-tab" class="tab-content" style="margin-top: 1.25rem;">
+        {% if archived_accounts %}
+        <div class="table-container">
+            <table class="compact-table">
+                <thead>
+                    <tr>
+                        <th>Account Number</th>
+                        <th>Linked Client</th>
+                        <th>Archived</th>
+                        <th>Reason</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for acc in archived_accounts %}
+                    <tr class="account-row-hover">
+                        <td><code>{{ acc.account_number }}</code></td>
+                        <td>
+                            {% if acc.client %}
+                                <a href="{% url 'client_detail' acc.client.id %}" style="color:var(--color-primary); text-decoration:none;">{{ acc.client.name }}</a>
+                            {% else %}
+                                <span style="color: var(--color-text-muted);">No client</span>
+                            {% endif %}
+                        </td>
+                        <td style="white-space:nowrap; color: var(--color-text-muted);">{{ acc.archived_at|date:"M d, Y H:i" }}</td>
+                        <td class="archive-reason-cell">{{ acc.archived_reason }}</td>
+                        <td style="text-align: right;">
+                            <form action="{% url 'unarchive_account' acc.id %}" method="post" style="display:inline-block;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-table-action">
+                                    <i data-lucide="archive-restore" style="width:14px; height:14px; display:inline-block; vertical-align:middle;"></i>
+                                    <span style="display:inline-block; vertical-align:middle;">Restore</span>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-archive-msg">
+            <i data-lucide="shield-check"></i>
+            <h3>No Archived Billing Accounts</h3>
+            <p>Archived billing accounts will show up here.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Archived Starlinks -->
+    <div id="archived-starlinks-tab" class="tab-content" style="margin-top: 1.25rem;">
+        {% if archived_starlinks %}
+        <div class="table-container">
+            <table class="compact-table">
+                <thead>
+                    <tr>
+                        <th>Kit Number</th>
+                        <th>Location</th>
+                        <th>Client</th>
+                        <th>Archived</th>
+                        <th>Reason</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sl in archived_starlinks %}
+                    <tr class="account-row-hover">
+                        <td><code>{{ sl.kit_number }}</code></td>
+                        <td>{{ sl.location_name }}</td>
+                        <td>
+                            {% if sl.client %}
+                                <a href="{% url 'client_detail' sl.client.id %}" style="color:var(--color-primary); text-decoration:none;">{{ sl.client.name }}</a>
+                            {% else %}
+                                <span style="color: var(--color-text-muted);">Unassigned</span>
+                            {% endif %}
+                        </td>
+                        <td style="white-space:nowrap; color: var(--color-text-muted);">{{ sl.archived_at|date:"M d, Y H:i" }}</td>
+                        <td class="archive-reason-cell">{{ sl.archived_reason }}</td>
+                        <td style="text-align: right;">
+                            <form action="{% url 'unarchive_starlink' sl.id %}" method="post" style="display:inline-block;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-table-action">
+                                    <i data-lucide="archive-restore" style="width:14px; height:14px; display:inline-block; vertical-align:middle;"></i>
+                                    <span style="display:inline-block; vertical-align:middle;">Restore</span>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-archive-msg">
+            <i data-lucide="shield-check"></i>
+            <h3>No Archived Starlink Kits</h3>
+            <p>Archived Starlink kits will show up here.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    lucide.createIcons();
+
+    function switchArchiveTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(tabId).classList.add('active');
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+        if (targetBtn) {
+            targetBtn.classList.add('active');
+        }
+    }
+</script>
+{% endblock %}

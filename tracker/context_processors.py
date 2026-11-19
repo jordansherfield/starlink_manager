@@ -1,5 +1,13 @@
 from django.db.models import Q
-from tracker.models import AuditLog, Client
+from tracker.models import AuditLog, Client, StarlinkDevice
+
+
+def kit_form_choices(request):
+    """Model/status choices for the Add Kit modal included on every page."""
+    return {
+        'kit_model_choices': StarlinkDevice.MODEL_CHOICES,
+        'kit_status_choices': StarlinkDevice.STATUS_CHOICES,
+    }
 
 def page_audit_logs(request):
     if not request.user or not request.user.is_authenticated:
@@ -27,3 +35,12 @@ def page_audit_logs(request):
 
     # Limit to 10 most recent logs for page drawer
     return {'page_audit_logs': logs[:10]}
+
+
+def starlink_inbox_count(request):
+    """Number of new-from-Starlink units waiting for a client, for the sidebar badge."""
+    if not getattr(request, 'user', None) or not request.user.is_authenticated:
+        return {}
+    count = (StarlinkDevice.objects.filter(is_archived=False, client__isnull=True)
+             .exclude(service_line_number__isnull=True).exclude(service_line_number='').count())
+    return {'starlink_inbox_count': count}

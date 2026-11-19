@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -)",
+      "Bash(python3 manage.py check)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(python3 manage.py shell -c \"from django.contrib.auth.models import User; print\\(list\\(User.objects.values_list\\('username', flat=True\\)\\)\\)\")",
+      "Bash(python3 -c \"import playwright; print\\('py playwright ok'\\)\")",
+      "Bash(node -e \"require\\('playwright'\\); console.log\\('node playwright ok'\\)\")",
+      "Bash(npm ls *)",
+      "Bash(.venv/bin/pip show *)"
+    ]
+  }
+}

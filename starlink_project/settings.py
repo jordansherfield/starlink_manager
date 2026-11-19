@@ -67,6 +67,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'tracker.context_processors.page_audit_logs',
+                'tracker.context_processors.kit_form_choices',
+                'tracker.context_processors.starlink_inbox_count',
             ],
         },
     },
@@ -131,6 +133,10 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+# Link credentials to their Bitwarden/Vaultwarden item, e.g.
+#   BITWARDEN_ITEM_URL=https://vault.example.com/#/vault?itemId={id}
+BITWARDEN_ITEM_URL = os.environ.get('BITWARDEN_ITEM_URL', '')
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

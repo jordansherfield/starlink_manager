@@ -4,8 +4,15 @@ from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
 from django.db import models
 from django.contrib.auth.models import User
-from .models import Client, StarlinkAccount, Credential, StarlinkDevice, AuditLog
+from .models import Client, StarlinkAccount, Credential, StarlinkDevice, ServicePlan, AuditLog, REDACTED, SECRET_FIELDS
 from tracker.middleware import get_current_user, is_audit_log_disabled
+
+def logged_value(instance, field_name, val):
+    """Value as written to the audit log - login passwords are never stored there."""
+    if field_name in SECRET_FIELDS.get(type(instance).__name__, ()) and val:
+        return REDACTED
+    return serialize_value(val)
+
 
 def serialize_value(val):
     if val is None:
@@ -27,6 +34,7 @@ def serialize_value(val):
 @receiver(pre_save, sender=StarlinkAccount)
 @receiver(pre_save, sender=Credential)
 @receiver(pre_save, sender=StarlinkDevice)
+@receiver(pre_save, sender=ServicePlan)
 def track_pre_save_changes(sender, instance, **kwargs):
     if is_audit_log_disabled():
         return
@@ -54,7 +62,8 @@ def track_pre_save_changes(sender, instance, **kwargs):
             continue
 
         if old_val != new_val:
-            changes[field_name] = [serialize_value(old_val), serialize_value(new_val)]
+            changes[field_name] = [logged_value(instance, field_name, old_val),
+                                   logged_value(instance, field_name, new_val)]
 
     instance._pending_changes = changes
 
@@ -62,6 +71,7 @@ def track_pre_save_changes(sender, instance, **kwargs):
 @receiver(post_save, sender=StarlinkAccount)
 @receiver(post_save, sender=Credential)
 @receiver(post_save, sender=StarlinkDevice)
+@receiver(post_save, sender=ServicePlan)
 def track_post_save_changes(sender, instance, created, **kwargs):
     if is_audit_log_disabled():
         return
@@ -82,7 +92,7 @@ def track_post_save_changes(sender, instance, created, **kwargs):
             field_name = field.name
             if field_name in ['created_at', 'updated_at', 'id']:
                 continue
-            changes[field_name] = [None, serialize_value(getattr(instance, field_name))]
+            changes[field_name] = [None, logged_value(instance, field_name, getattr(instance, field_name))]
         
         # Log the creation
         log = AuditLog.objects.create(
@@ -171,6 +181,7 @@ def track_post_save_changes(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=StarlinkAccount)
 @receiver(post_delete, sender=Credential)
 @receiver(post_delete, sender=StarlinkDevice)
+@receiver(post_delete, sender=ServicePlan)
 def track_post_delete(sender, instance, **kwargs):
     if is_audit_log_disabled():
         return
@@ -190,7 +201,7 @@ def track_post_delete(sender, instance, **kwargs):
         field_name = field.name
         if field_name in ['created_at', 'updated_at', 'id']:
             continue
-        changes[field_name] = [serialize_value(getattr(instance, field_name)), None]
+        changes[field_name] = [logged_value(instance, field_name, getattr(instance, field_name)), None]
 
     AuditLog.objects.create(
         user=user,
@@ -201,3 +212,21 @@ def track_post_delete(sender, instance, **kwargs):
         kit_number=kit_number,
         changes=changes
     )
+
+@receiver(pre_save, sender=StarlinkAccount)
+@receiver(pre_save, sender=StarlinkDevice)
+def stash_old_client_for_counts(sender, instance, **kwargs):
+    if instance.pk:
+        instance._old_client_id = sender.objects.filter(pk=instance.pk).values_list('client_id', flat=True).first()
+    else:
+        instance._old_client_id = None
+
+@receiver(post_save, sender=StarlinkAccount)
+@receiver(post_delete, sender=StarlinkAccount)
+@receiver(post_save, sender=StarlinkDevice)
+@receiver(post_delete, sender=StarlinkDevice)
+def refresh_client_counts(sender, instance, **kwargs):
+    client_ids = {instance.client_id, getattr(instance, '_old_client_id', None)}
+    client_ids.discard(None)
+    for client in Client.objects.filter(pk__in=client_ids):
+        client.recalculate_counts()

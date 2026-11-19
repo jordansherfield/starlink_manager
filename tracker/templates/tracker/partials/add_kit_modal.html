@@ -1,0 +1,481 @@
+<!-- Add Kit Modal: the single way to add a Starlink kit. Included from base.html, so it opens on every page. -->
+<div class="modal-overlay" id="addKitModal">
+    <div class="modal-card modal-compact add-kit-card">
+        <div class="modal-header">
+            <h3><i data-lucide="satellite" style="width:18px; height:18px; vertical-align:-3px;"></i> Add Kit</h3>
+            <button type="button" class="btn-close" onclick="closeAddKitModal()"><i data-lucide="x"></i></button>
+        </div>
+        <form id="addKitForm" action="{% url 'add_kit' %}" method="post" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="client_mode" id="ak_client_mode" value="existing">
+            <input type="hidden" name="client_id" id="ak_client_id">
+            <input type="hidden" name="account_mode" id="ak_account_mode" value="none">
+            <input type="hidden" name="account_id" id="ak_account_id">
+            <input type="hidden" name="model" id="ak_model" value="Gen3">
+            <input type="hidden" name="status" id="ak_status" value="To install">
+
+            <div class="modal-body">
+                <div class="ak-alert" id="ak_general_error" hidden></div>
+
+                <!-- 1. Kit number -->
+                <div class="form-group">
+                    <label for="ak_kit">Kit Number *</label>
+                    <input type="text" id="ak_kit" name="kit_number" class="ak-kit-input" autocomplete="off" spellcheck="false" placeholder="KIT401375658CM4">
+                    <div class="ak-field-msg" data-error-for="kit_number" id="ak_kit_msg"></div>
+                </div>
+
+                <!-- 2. Client -->
+                <div class="form-group">
+                    <label>Client</label>
+                    <div class="ak-seg" data-target="ak_client_mode">
+                        <button type="button" data-value="existing" class="active">Existing</button>
+                        <button type="button" data-value="new">+ New client</button>
+                        <button type="button" data-value="none">Unassigned</button>
+                    </div>
+                    <div class="ak-pane" data-pane-for="ak_client_mode" data-value="existing">
+                        <div class="ak-combo" id="ak_client_combo">
+                            <input type="text" id="ak_client_search" autocomplete="off" placeholder="Search clients...">
+                            <div class="ak-combo-list" hidden></div>
+                        </div>
+                    </div>
+                    <div class="ak-pane form-grid" data-pane-for="ak_client_mode" data-value="new" hidden>
+                        <input type="text" name="new_client_name" id="ak_new_client_name" placeholder="Client name">
+                        <select name="new_client_company" id="ak_new_client_company"></select>
+                    </div>
+                    <div class="ak-field-msg" data-error-for="client"></div>
+                </div>
+
+                <!-- 3. Billing account -->
+                <div class="form-group">
+                    <label>Billing Account</label>
+                    <div class="ak-seg" data-target="ak_account_mode">
+                        <button type="button" data-value="existing">Existing</button>
+                        <button type="button" data-value="new">+ New account</button>
+                        <button type="button" data-value="none" class="active">No account yet</button>
+                    </div>
+                    <div class="ak-pane" data-pane-for="ak_account_mode" data-value="existing" hidden>
+                        <div class="ak-combo" id="ak_account_combo">
+                            <input type="text" id="ak_account_search" autocomplete="off" placeholder="Search by account number or client...">
+                            <div class="ak-combo-list" hidden></div>
+                        </div>
+                    </div>
+                    <div class="ak-pane" data-pane-for="ak_account_mode" data-value="new" hidden>
+                        <div class="form-grid">
+                            <input type="text" name="new_account_number" id="ak_new_account_number" placeholder="ACC-1234567-12345-12">
+                            <input type="date" name="new_account_due_by" title="Account due by (optional)">
+                        </div>
+                        <div class="form-grid" style="margin-top:0.5rem;">
+                            <input type="text" name="new_account_username" autocomplete="off" placeholder="Starlink login (email)">
+                            <input type="text" name="new_account_bitwarden" autocomplete="off" placeholder="Bitwarden item ID (optional)">
+                        </div>
+                        <input type="text" name="new_account_password" autocomplete="off" placeholder="Password - optional, best kept in Bitwarden" style="margin-top:0.5rem;">
+                    </div>
+                    <div class="ak-field-msg" data-error-for="account"></div>
+                </div>
+
+                <!-- 4. Model + status -->
+                <div class="form-group">
+                    <label>Model <span id="ak_model_hint" style="font-weight:400; font-size:0.72rem; color:var(--color-success);"></span></label>
+                    <div class="ak-seg" data-target="ak_model">
+                        {% for value, label in kit_model_choices %}
+                        <button type="button" data-value="{{ value }}"{% if value == 'Gen3' %} class="active"{% endif %}>{{ label }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <div class="ak-seg ak-seg-wrap" data-target="ak_status">
+                        {% for value, label in kit_status_choices %}
+                        <button type="button" data-value="{{ value }}"{% if value == 'To install' %} class="active"{% endif %}>{{ label }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- 4b. Plan -->
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="ak_plan">Service Plan</label>
+                        <select id="ak_plan" name="plan_id"><option value="">-- No plan yet --</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="ak_price_override">Price Override</label>
+                        <input type="number" step="0.01" min="0" id="ak_price_override" name="price_override" placeholder="Blank = plan price">
+                    </div>
+                </div>
+                <div class="ak-field-msg" data-error-for="plan"></div>
+
+                <!-- 5. Location -->
+                <div class="form-group">
+                    <label for="ak_location">Location Name</label>
+                    <input type="text" id="ak_location" name="location_name" placeholder="Defaults to the client's name">
+                </div>
+
+                <!-- 6. Optional details -->
+                <details class="ak-more" id="ak_more">
+                    <summary>More details <span>Starlink ID, serial, Wi-Fi, coordinates, notes</span></summary>
+                    <div class="ak-more-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="ak_starlink_id">Starlink ID</label>
+                                <input type="text" id="ak_starlink_id" name="starlink_id" autocomplete="off" placeholder="01000000-00000000-007d0247">
+                                <div class="ak-field-msg" data-error-for="starlink_id"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="ak_serial">Serial Number</label>
+                                <input type="text" id="ak_serial" name="serial_number" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="ak_wifi_name">Wi-Fi Name</label>
+                                <input type="text" id="ak_wifi_name" name="wifi_name" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label for="ak_wifi_pass">Wi-Fi Password</label>
+                                <input type="text" id="ak_wifi_pass" name="wifi_password" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="ak_lat">Latitude</label>
+                                <input type="text" inputmode="decimal" id="ak_lat" name="latitude" placeholder="-20.0986  (or paste 'lat, long' or a Maps link)">
+                            </div>
+                            <div class="form-group">
+                                <label for="ak_lng">Longitude</label>
+                                <input type="text" inputmode="decimal" id="ak_lng" name="longitude" placeholder="28.4572">
+                            </div>
+                        </div>
+                        <div class="ak-field-msg" data-error-for="coordinates"></div>
+                        <button type="button" class="btn btn-secondary ak-map-btn" id="ak_map_btn" hidden>
+                            <i data-lucide="map-pin"></i> Pick on map
+                        </button>
+                        <div class="form-group">
+                            <label for="ak_notes">Notes</label>
+                            <textarea id="ak_notes" name="notes" placeholder="Install date, technician, access details..."></textarea>
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAddKitModal()">Cancel</button>
+                <!-- "Add Kit" comes first in the markup so pressing Enter uses it; CSS order puts it last. -->
+                <button type="submit" class="btn btn-primary" style="order:2;">Add Kit</button>
+                <button type="submit" class="btn btn-secondary" data-another="1" style="order:1;" title="Save, then keep the client and account selected for the next kit">Save &amp; add another</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const OPTIONS_URL = "{% url 'kit_form_options' %}";
+    const CHECK_URL = "{% url 'kit_check' %}";
+    const CLIENT_URL = "{% url 'client_detail' 0 %}";
+
+    const modal = document.getElementById('addKitModal');
+    const form = document.getElementById('addKitForm');
+    const $ = id => document.getElementById(id);
+    let options = { clients: [], accounts: [], companies: [] };
+    let reloadOnClose = false;
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // ---- Segmented buttons (client mode, account mode, model, status) ----
+    function setSeg(targetId, value) {
+        $(targetId).value = value;
+        form.querySelectorAll(`.ak-seg[data-target="${targetId}"] button`).forEach(b => {
+            b.classList.toggle('active', b.dataset.value === value);
+        });
+        form.querySelectorAll(`.ak-pane[data-pane-for="${targetId}"]`).forEach(p => {
+            p.hidden = p.dataset.value !== value;
+        });
+    }
+    form.querySelectorAll('.ak-seg').forEach(seg => {
+        seg.addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            setSeg(seg.dataset.target, btn.dataset.value);
+            if (seg.dataset.target === 'ak_client_mode' && btn.dataset.value === 'new') $('ak_new_client_name').focus();
+            if (seg.dataset.target === 'ak_account_mode' && btn.dataset.value === 'existing') $('ak_account_search').focus();
+            if (seg.dataset.target === 'ak_account_mode' && btn.dataset.value === 'new') $('ak_new_account_number').focus();
+        });
+    });
+
+    // ---- Searchable combobox ----
+    function makeCombo(comboId, getItems, onPick) {
+        const combo = $(comboId);
+        const input = combo.querySelector('input');
+        const list = combo.querySelector('.ak-combo-list');
+        let active = -1;
+        let shown = [];
+
+        function render() {
+            const q = input.value.trim().toLowerCase();
+            shown = getItems().filter(item => !q || item.search.includes(q)).slice(0, 50);
+            list.innerHTML = shown.length
+                ? shown.map((item, i) => `<div class="ak-combo-item${i === active ? ' active' : ''}" data-i="${i}">
+                        <span>${escapeHtml(item.label)}</span>${item.hint ? `<small>${escapeHtml(item.hint)}</small>` : ''}</div>`).join('')
+                : '<div class="ak-combo-empty">No matches</div>';
+            list.hidden = false;
+        }
+        function pick(item) {
+            input.value = item.label;
+            list.hidden = true;
+            onPick(item);
+        }
+        input.addEventListener('focus', () => { active = -1; render(); });
+        input.addEventListener('input', () => { active = 0; onPick(null); render(); });
+        input.addEventListener('keydown', e => {
+            if (list.hidden) return;
+            if (e.key === 'ArrowDown') { active = Math.min(active + 1, shown.length - 1); render(); e.preventDefault(); }
+            else if (e.key === 'ArrowUp') { active = Math.max(active - 1, 0); render(); e.preventDefault(); }
+            else if (e.key === 'Enter') { if (shown[active]) { pick(shown[active]); } e.preventDefault(); }
+            else if (e.key === 'Escape') { list.hidden = true; e.stopPropagation(); }
+        });
+        list.addEventListener('mousedown', e => {
+            const row = e.target.closest('.ak-combo-item');
+            if (row) { e.preventDefault(); pick(shown[+row.dataset.i]); }
+        });
+        input.addEventListener('blur', () => { list.hidden = true; });
+        return {
+            set(item) { input.value = item ? item.label : ''; onPick(item); },
+        };
+    }
+
+    const clientCombo = makeCombo('ak_client_combo',
+        () => options.clients.map(c => ({ id: c.id, label: c.name, hint: c.company, search: c.name.toLowerCase() })),
+        item => {
+            $('ak_client_id').value = item ? item.id : '';
+            if (item) suggestAccountFor(item.id);
+        });
+
+    const accountCombo = makeCombo('ak_account_combo', () => {
+        const clientId = +$('ak_client_id').value;
+        const items = options.accounts.map(a => ({
+            id: a.id,
+            label: a.number,
+            hint: a.owners.join(', ') || 'No client yet',
+            search: (a.number + ' ' + a.owners.join(' ')).toLowerCase(),
+            mine: clientId && a.client_ids.includes(clientId),
+        }));
+        // The selected client's accounts first.
+        return items.sort((a, b) => (b.mine - a.mine) || a.label.localeCompare(b.label));
+    }, item => { $('ak_account_id').value = item ? item.id : ''; });
+
+    function accountItem(a) {
+        return { id: a.id, label: a.number };
+    }
+
+    // When a client is picked and has exactly one account, select it.
+    function suggestAccountFor(clientId) {
+        if ($('ak_account_mode').value === 'new') return;
+        const theirs = options.accounts.filter(a => a.client_ids.includes(+clientId));
+        if (theirs.length === 1) {
+            setSeg('ak_account_mode', 'existing');
+            accountCombo.set(accountItem(theirs[0]));
+        } else if ($('ak_account_mode').value === 'existing' && !$('ak_account_id').value) {
+            accountCombo.set(null);
+        }
+    }
+
+    // ---- Dish type from the kit / serial number ----
+    let modelTouched = false;
+    function detectModel(kit, serial) {
+        kit = (kit || '').toUpperCase(); serial = (serial || '').toUpperCase();
+        if (serial.startsWith('M1') || kit.startsWith('KIT4M')) return 'Mini';
+        if (serial.startsWith('2DUN') || serial.startsWith('2DWC') || kit.startsWith('KIT30')) return 'gen2';
+        if (serial.startsWith('4PBA') || kit.startsWith('KIT40')) return 'Gen3';
+        return null;
+    }
+    const MODEL_LABELS = { Mini: 'Mini', gen2: 'Gen 2', Gen3: 'Gen 3' };
+    function applyDetectedModel() {
+        const found = detectModel($('ak_kit').value, $('ak_serial').value);
+        const hint = $('ak_model_hint');
+        if (!found) { hint.textContent = ''; return; }
+        if (!modelTouched) setSeg('ak_model', found);
+        hint.textContent = $('ak_model').value === found
+            ? `- ${MODEL_LABELS[found]}, from the kit/serial number`
+            : `- the kit/serial number says ${MODEL_LABELS[found]}`;
+        hint.style.color = $('ak_model').value === found ? 'var(--color-success)' : 'var(--color-danger)';
+    }
+    form.querySelector('.ak-seg[data-target="ak_model"]').addEventListener('click', () => {
+        modelTouched = true; applyDetectedModel();
+    });
+    $('ak_serial').addEventListener('input', applyDetectedModel);
+
+    // ---- Kit number live check ----
+    let checkTimer = null;
+    $('ak_kit').addEventListener('input', () => {
+        const input = $('ak_kit');
+        const pos = input.selectionStart;
+        input.value = input.value.toUpperCase().replace(/\s+/g, '');
+        input.setSelectionRange(pos, pos);
+        clearTimeout(checkTimer);
+        const msg = $('ak_kit_msg');
+        msg.textContent = '';
+        msg.className = 'ak-field-msg';
+        applyDetectedModel();
+        if (!input.value) return;
+        if (input.value.length >= 4 && !/^KIT[A-Z0-9]{6,}$/.test(input.value)) {
+            msg.textContent = 'Kit numbers look like KIT401375658CM4';
+            msg.className = 'ak-field-msg error';
+        }
+        checkTimer = setTimeout(async () => {
+            const kit = input.value;
+            const res = await fetch(CHECK_URL + '?kit_number=' + encodeURIComponent(kit));
+            const data = await res.json();
+            if (kit !== input.value) return;
+            if (data.exists) {
+                const where = data.client_id
+                    ? `<a href="${CLIENT_URL.replace('/0/', '/' + data.client_id + '/')}">${escapeHtml(data.client)}</a>`
+                    : escapeHtml(data.client);
+                msg.innerHTML = `Already exists on ${where}${data.archived ? ' (archived - restore it from Archived Items)' : ''}.`;
+                msg.className = 'ak-field-msg error';
+            } else if (/^KIT[A-Z0-9]{6,}$/.test(kit)) {
+                msg.textContent = 'New kit number';
+                msg.className = 'ak-field-msg ok';
+            }
+        }, 300);
+    });
+
+    // Pasting "lat, long" into latitude fills both fields.
+    $('ak_lat').addEventListener('input', () => {
+        const value = $('ak_lat').value.replace(/%2C/gi, ',');
+        if (!value.includes(',')) return;
+        const m = value.match(/(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/);
+        if (m) {
+            $('ak_lat').value = m[1];
+            $('ak_lng').value = m[2];
+        }
+    });
+
+    // Map picking is available where the page has the dashboard map picker.
+    $('ak_map_btn').addEventListener('click', () => {
+        enterDashboardGpsSelection('ak_lat', 'ak_lng', $('ak_kit').value || 'New Kit', 'addKitModal');
+    });
+
+    // ---- Errors ----
+    function clearErrors() {
+        $('ak_general_error').hidden = true;
+        form.querySelectorAll('.ak-field-msg[data-error-for]').forEach(el => {
+            if (el.id !== 'ak_kit_msg') { el.textContent = ''; el.className = 'ak-field-msg'; }
+        });
+    }
+    function showErrors(errors) {
+        let first = null;
+        Object.entries(errors).forEach(([field, text]) => {
+            const el = form.querySelector(`.ak-field-msg[data-error-for="${field}"]`);
+            if (el) {
+                el.textContent = text;
+                el.className = 'ak-field-msg error';
+                first = first || el;
+            } else {
+                $('ak_general_error').textContent = text;
+                $('ak_general_error').hidden = false;
+            }
+        });
+        if (errors.coordinates || errors.starlink_id) $('ak_more').open = true;
+        if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    // ---- Submit ----
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const another = e.submitter && e.submitter.dataset.another;
+        clearErrors();
+        const buttons = form.querySelectorAll('button[type=submit]');
+        buttons.forEach(b => b.disabled = true);
+        try {
+            const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+            const data = await res.json().catch(() => ({ ok: false, errors: { general: 'The server returned an unexpected response.' } }));
+            if (!data.ok) {
+                showErrors(data.errors || { general: 'Could not save the kit.' });
+                return;
+            }
+            if (!another) {
+                window.location.reload();
+                return;
+            }
+            // Keep client/account/model/status for the next kit; clear the per-kit fields.
+            showToast(`Kit ${escapeHtml($('ak_kit').value)} added`);
+            reloadOnClose = true;
+            ['ak_kit', 'ak_starlink_id', 'ak_serial', 'ak_wifi_name', 'ak_wifi_pass', 'ak_lat', 'ak_lng', 'ak_notes',
+             'ak_location', 'ak_price_override'].forEach(id => $(id).value = '');
+            modelTouched = false;
+            $('ak_model_hint').textContent = '';
+            $('ak_kit_msg').textContent = '';
+            await loadOptions();
+            // A just-created client/account now exists, so switch to selecting it.
+            if ($('ak_client_mode').value === 'new') {
+                const name = $('ak_new_client_name').value.trim();
+                const c = options.clients.filter(c => c.name === name).pop();
+                if (c) { setSeg('ak_client_mode', 'existing'); clientCombo.set({ id: c.id, label: c.name }); }
+            }
+            if ($('ak_account_mode').value === 'new') {
+                const number = $('ak_new_account_number').value.trim();
+                const a = options.accounts.find(a => a.number === number);
+                if (a) { setSeg('ak_account_mode', 'existing'); accountCombo.set(accountItem(a)); }
+            }
+            $('ak_kit').focus();
+        } catch (err) {
+            showErrors({ general: 'Network error - the kit was not saved. Please try again.' });
+        } finally {
+            buttons.forEach(b => b.disabled = false);
+        }
+    });
+
+    async function loadOptions() {
+        const res = await fetch(OPTIONS_URL);
+        options = await res.json();
+        const companySelect = $('ak_new_client_company');
+        if (!companySelect.options.length) {
+            companySelect.innerHTML = '<option value="">Company...</option>' +
+                options.companies.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        }
+        const planSelect = $('ak_plan');
+        const chosenPlan = planSelect.value;
+        planSelect.innerHTML = '<option value="">-- No plan yet --</option>' + (options.plans || []).map(p =>
+            `<option value="${p.id}">${escapeHtml(p.name)}${p.price !== null ? ` (${escapeHtml(p.currency)} ${escapeHtml(p.price)})` : ''}</option>`).join('');
+        planSelect.value = chosenPlan;
+    }
+
+    // ---- Open / close ----
+    // opts: { clientId, clientName } to start with a client selected.
+    window.openAddKitModal = async function (opts = {}) {
+        form.reset();
+        clearErrors();
+        $('ak_kit_msg').textContent = '';
+        $('ak_more').open = false;
+        $('ak_map_btn').hidden = typeof enterDashboardGpsSelection !== 'function';
+        setSeg('ak_model', 'Gen3');
+        setSeg('ak_status', 'To install');
+        modelTouched = false;
+        $('ak_model_hint').textContent = '';
+        setSeg('ak_account_mode', 'none');
+        accountCombo.set(null);
+        openModal('addKitModal');
+        $('ak_kit').focus();
+
+        await loadOptions();
+        if (opts.clientId) {
+            setSeg('ak_client_mode', 'existing');
+            clientCombo.set({ id: opts.clientId, label: opts.clientName });
+        } else {
+            setSeg('ak_client_mode', 'existing');
+            clientCombo.set(null);
+        }
+    };
+
+    window.closeAddKitModal = function () {
+        closeModal('addKitModal');
+        if (reloadOnClose) window.location.reload();
+    };
+
+    modal.addEventListener('click', e => { if (e.target === modal) closeAddKitModal(); });
+})();
+</script>

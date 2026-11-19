@@ -201,6 +201,45 @@
         margin-bottom: 1rem;
         color: var(--color-success);
     }
+
+    .day-group {
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+
+    .day-group:last-child {
+        margin-bottom: 0;
+    }
+
+    .day-group-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        background-color: var(--color-bg-base);
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .day-group-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--color-text-primary);
+    }
+
+    .day-group .stats-table th,
+    .day-group .stats-table td {
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .day-group .stats-table tr:last-child td {
+        border-bottom: none;
+    }
 </style>
 {% endblock %}
 
@@ -286,56 +325,69 @@
     
     <div class="table-container">
         {% if upcoming_due_accounts %}
-        <table class="stats-table">
-            <thead>
-                <tr>
-                    <th>Account Number</th>
-                    <th>Associated Client(s)</th>
-                    <th>Due Date</th>
-                    <th>Wholesale Cost</th>
-                    <th>Retail Invoice</th>
-                    <th>Estimated Profit</th>
-                    <th>Last Payment Date</th>
-                    <th style="text-align: right;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for acc in upcoming_due_accounts %}
-                <tr>
-                    <td><code>{{ acc.account_number }}</code></td>
-                    <td>
-                        {% if acc.associated_clients %}
-                            {% for c in acc.associated_clients %}
-                                <a href="{% url 'client_detail' c.id %}" style="color:var(--color-primary); text-decoration:none; border-bottom:1px dashed transparent;" onmouseover="this.style.borderColor='var(--color-primary)'" onmouseout="this.style.borderColor='transparent'">{{ c.name }}</a>{% if not forloop.last %}, {% endif %}
-                            {% endfor %}
-                        {% else %}
-                            <span style="color:var(--color-text-muted);">No Active Client</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <span class="status-badge status-account-issue" style="font-size:0.75rem; padding: 0.15rem 0.5rem;">
-                            {{ acc.account_due_by|date:"M d, Y" }}
-                        </span>
-                    </td>
-                    <td>${{ acc.cost_to_us }}</td>
-                    <td>${{ acc.client_invoice }}</td>
-                    <td style="color: {% if acc.margin >= 0 %}var(--color-success){% else %}var(--color-danger){% endif %}; font-weight:600;">
-                        ${{ acc.margin }}
-                    </td>
-                    <td>{{ acc.last_payment_date|default:"None" }}</td>
-                    <td style="text-align: right;">
-                        <form action="{% url 'mark_account_paid' acc.id %}" method="post" style="display:inline-block;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-table-action">
-                                <i data-lucide="check-check" style="width:14px; height:14px; display:inline-block; vertical-align:middle;"></i>
-                                <span style="display:inline-block; vertical-align:middle;">Mark Paid</span>
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% regroup upcoming_due_accounts by account_due_by as day_groups %}
+        {% for day in day_groups %}
+        <div class="day-group">
+            <div class="day-group-header">
+                <span class="day-group-title">
+                    <i data-lucide="calendar-days" style="width:16px; height:16px;"></i>
+                    {{ day.grouper|date:"l jS F" }}
+                </span>
+                <form action="{% url 'mark_accounts_paid_for_day' %}" method="post" style="display:inline-block;">
+                    {% csrf_token %}
+                    <input type="hidden" name="due_date" value="{{ day.grouper|date:'Y-m-d' }}">
+                    <button type="submit" class="btn-table-action">
+                        <i data-lucide="check-check" style="width:14px; height:14px; display:inline-block; vertical-align:middle;"></i>
+                        <span style="display:inline-block; vertical-align:middle;">Mark All Paid</span>
+                    </button>
+                </form>
+            </div>
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Account Number</th>
+                        <th>Associated Client(s)</th>
+                        <th>Wholesale Cost</th>
+                        <th>Retail Invoice</th>
+                        <th>Estimated Profit</th>
+                        <th>Last Payment Date</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for acc in day.list %}
+                    <tr>
+                        <td><code>{{ acc.account_number }}</code></td>
+                        <td>
+                            {% if acc.associated_clients %}
+                                {% for c in acc.associated_clients %}
+                                    <a href="{% url 'client_detail' c.id %}" style="color:var(--color-primary); text-decoration:none; border-bottom:1px dashed transparent;" onmouseover="this.style.borderColor='var(--color-primary)'" onmouseout="this.style.borderColor='transparent'">{{ c.name }}</a>{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span style="color:var(--color-text-muted);">No Active Client</span>
+                            {% endif %}
+                        </td>
+                        <td>${{ acc.cost_to_us }}</td>
+                        <td>${{ acc.client_invoice }}</td>
+                        <td style="color: {% if acc.margin >= 0 %}var(--color-success){% else %}var(--color-danger){% endif %}; font-weight:600;">
+                            ${{ acc.margin }}
+                        </td>
+                        <td>{{ acc.last_payment_date|default:"None" }}</td>
+                        <td style="text-align: right;">
+                            <form action="{% url 'mark_account_paid' acc.id %}" method="post" style="display:inline-block;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-table-action">
+                                    <i data-lucide="check-check" style="width:14px; height:14px; display:inline-block; vertical-align:middle;"></i>
+                                    <span style="display:inline-block; vertical-align:middle;">Mark Paid</span>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
         {% else %}
         <div class="empty-billing-schedule">
             <i data-lucide="shield-check"></i>

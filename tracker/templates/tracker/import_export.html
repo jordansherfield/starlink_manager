@@ -9,12 +9,18 @@
 <div class="panel" style="background-color: var(--color-bg-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25); margin-bottom: 1.5rem;">
     <h3 style="display:flex; align-items:center; gap:0.5rem; margin-top:0;"><i data-lucide="download"></i> Export</h3>
     <p style="color: var(--color-text-secondary); font-size: 0.85rem;">
-        Download every client, billing account, terminal and credential currently in the system as a single CSV file.
+        Download every client, billing account, terminal and credential login currently in the system as a single CSV file.
+        Passwords are left out unless you tick the box - the file is easy to forward by accident.
     </p>
-    <a href="{% url 'export_csv_view' %}" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:0.4rem;">
-        <i data-lucide="file-down"></i>
-        <span>Export All Data (CSV)</span>
-    </a>
+    <form action="{% url 'export_csv_view' %}" method="get" style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:0.4rem;">
+            <i data-lucide="file-down"></i>
+            <span>Export All Data (CSV)</span>
+        </button>
+        <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; color:var(--color-text-secondary);">
+            <input type="checkbox" name="include_passwords" value="1" style="width:auto;"> Include stored passwords
+        </label>
+    </form>
 </div>
 
 <div class="panel" style="background-color: var(--color-bg-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
@@ -22,9 +28,12 @@
 
     {% if not preview %}
         <p style="color: var(--color-text-secondary); font-size: 0.85rem;">
-            Upload the NetConnect-format tracker CSV (Remarks / Address / Client / Model / Account Number / StarLink ID /
-            Serial / KIT NUMBER / Sign-in User / second email / Sign-in Pass / Billing Cycle). You'll get a chance to
-            review exactly what will change before anything is saved.
+            Upload the Starlink harvest (<code>starlink_accounts.csv</code> from the Starlink harvester), the NetConnect
+            tracker sheet (Remarks / Address / Client / Model / Account Number / StarLink ID / Serial / KIT NUMBER /
+            Sign-in User / second email / Sign-in Pass / Billing Cycle), or a file exported from this page.
+            A Starlink harvest updates existing units (their client, model and status are kept) and adds new units
+            unassigned, ready to assign on the <a href="{% url 'starlink_inbox' %}">Starlink Inbox</a>. Blank cells never wipe existing data. You'll get a chance to review exactly what will change before
+            anything is saved.
         </p>
         <form action="{% url 'import_csv_preview' %}" method="post" enctype="multipart/form-data" style="display:flex; align-items:flex-end; gap:1rem; flex-wrap:wrap;">
             {% csrf_token %}
@@ -40,7 +49,7 @@
     {% else %}
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
             <p style="color: var(--color-text-secondary); font-size: 0.85rem; margin:0;">
-                Previewing <strong>{{ pending_filename }}</strong> — nothing has been written to the database yet.
+                Previewing <strong>{{ pending_filename }}</strong> ({{ preview.format }}) — nothing has been written to the database yet.
             </p>
             <div style="display:flex; gap:0.5rem;">
                 <form action="{% url 'import_csv_cancel' %}" method="post" style="margin:0;">
@@ -50,8 +59,14 @@
                         <span>Discard</span>
                     </button>
                 </form>
-                <form action="{% url 'import_csv_confirm' %}" method="post" style="margin:0;">
+                <form action="{% url 'import_csv_confirm' %}" method="post" style="margin:0; display:flex; align-items:center; gap:0.75rem;">
                     {% csrf_token %}
+                    {% if preview.archived_found %}
+                    <label style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.8rem; color:var(--color-text-secondary); cursor:pointer;">
+                        <input type="checkbox" name="restore_archived" value="yes">
+                        Restore {{ preview.archived_found }} archived kit{{ preview.archived_found|pluralize }}
+                    </label>
+                    {% endif %}
                     <button type="submit" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:0.4rem;">
                         <i data-lucide="check"></i>
                         <span>Confirm Import</span>
@@ -59,6 +74,15 @@
                 </form>
             </div>
         </div>
+
+        {% if preview.notes %}
+        <div style="background: var(--color-bg-card); border: 1px solid var(--color-warning, #f59e0b); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+            <div style="font-weight:600; margin-bottom:0.4rem; display:flex; align-items:center; gap:0.4rem;"><i data-lucide="info" style="width:16px; height:16px;"></i> Worth a look</div>
+            <ul style="margin:0; padding-left:1.2rem; font-size:0.8rem; color:var(--color-text-secondary);">
+                {% for note in preview.notes %}<li>{{ note }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
 
         <!-- Summary tiles -->
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem; margin-bottom:1.5rem;">
@@ -70,6 +94,12 @@
                 <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.accounts_created }}</div>
                 <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Accounts</div>
             </div>
+            {% if preview.plans_created %}
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.plans_created }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Plans</div>
+            </div>
+            {% endif %}
             <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
                 <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.devices_created }}</div>
                 <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Devices</div>
@@ -79,6 +109,14 @@
                 <div style="font-size:0.75rem; color:var(--color-text-secondary);">Devices Updated</div>
             </div>
             <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-text-muted);">{{ preview.devices_unchanged }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">Devices Unchanged</div>
+            </div>
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:var(--color-primary);">{{ preview.accounts_updated }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">Accounts Updated</div>
+            </div>
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
                 <div style="font-size:1.4rem; font-weight:700; color:var(--color-success);">{{ preview.credentials_created }}</div>
                 <div style="font-size:0.75rem; color:var(--color-text-secondary);">New Credentials</div>
             </div>
@@ -86,6 +124,12 @@
                 <div style="font-size:1.4rem; font-weight:700; color:var(--color-text-muted);">{{ preview.total_skipped }}</div>
                 <div style="font-size:0.75rem; color:var(--color-text-secondary);">Rows Skipped</div>
             </div>
+            {% if preview.archived_found %}
+            <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem 1rem;">
+                <div style="font-size:1.4rem; font-weight:700; color:#f59e0b;">{{ preview.archived_found }}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-secondary);">Archived Kits Matched</div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Row-by-row detail -->
@@ -99,6 +143,7 @@
                         <th style="padding: 0.6rem 0.9rem;">Account</th>
                         <th style="padding: 0.6rem 0.9rem;">Status / Model</th>
                         <th style="padding: 0.6rem 0.9rem;">Result</th>
+                        <th style="padding: 0.6rem 0.9rem;">Changes</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -118,9 +163,22 @@
                                 <span class="status-badge status-hardware-fault" style="font-size:0.65rem; padding:0.15rem 0.4rem;">SKIP: {{ row.skip_reason }}</span>
                             {% elif row.device_action == 'create' %}
                                 <span class="status-badge status-running" style="font-size:0.65rem; padding:0.15rem 0.4rem;">CREATE</span>
-                            {% else %}
+                            {% elif row.device_action == 'update' %}
                                 <span class="status-badge status-to-install" style="font-size:0.65rem; padding:0.15rem 0.4rem;">UPDATE</span>
+                            {% else %}
+                                <span class="status-badge status-deactivated" style="font-size:0.65rem; padding:0.15rem 0.4rem;">NO CHANGE</span>
                             {% endif %}
+                            {% if row.archived %}
+                                <span class="status-badge status-account-issue" style="font-size:0.65rem; padding:0.15rem 0.4rem;" title="This kit is archived. Tick 'Restore archived kits' before confirming to un-archive it.">ARCHIVED</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.6rem 0.9rem; font-size:0.72rem; color:var(--color-text-secondary);">
+                            {% for field, old, new in row.changes %}
+                                <div><strong>{{ field }}</strong>: <span style="color:var(--color-text-muted);">{{ old|default:"(empty)"|truncatechars:40 }}</span> &rarr; {{ new|truncatechars:40 }}</div>
+                            {% endfor %}
+                            {% for warning in row.warnings %}
+                                <div style="color:#f59e0b;">&#9888; {{ warning }}</div>
+                            {% endfor %}
                         </td>
                     </tr>
                     {% endfor %}
