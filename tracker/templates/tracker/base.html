@@ -11,8 +11,25 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons (pinned: "@latest" can change or break without warning) -->
+    <script src="https://unpkg.com/lucide@1.76.0/dist/umd/lucide.min.js"></script>
+    <script>
+        // lucide.createIcons() re-draws EVERY icon on the page each time it's called (~3 s with 3,000 icons).
+        // After each run, mark the drawn icons as done so later calls only draw new ones. Code that swaps an
+        // icon sets data-lucide on it again, so it is still re-drawn.
+        (function () {
+            if (typeof lucide === 'undefined') return;
+            const drawIcons = lucide.createIcons.bind(lucide);
+            lucide.createIcons = function (options) {
+                const result = drawIcons(options);
+                document.querySelectorAll('svg[data-lucide]').forEach(function (svg) {
+                    svg.setAttribute('data-lucide-done', svg.getAttribute('data-lucide'));
+                    svg.removeAttribute('data-lucide');
+                });
+                return result;
+            };
+        })();
+    </script>
     
     <!-- Leaflet.js (Map) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -377,12 +394,10 @@
                     const wasCollapsed = sidebar.classList.toggle('collapsed');
                     localStorage.setItem('sidebar_collapsed', wasCollapsed);
                     
-                    if (toggleIcon) {
-                        if (wasCollapsed) {
-                            toggleIcon.setAttribute('data-lucide', 'chevron-right');
-                        } else {
-                            toggleIcon.setAttribute('data-lucide', 'chevron-left');
-                        }
+                    // Look the icon up again: drawing an icon replaces the element, so an older reference is stale.
+                    const currentIcon = document.getElementById('sidebar-toggle-icon');
+                    if (currentIcon) {
+                        currentIcon.setAttribute('data-lucide', wasCollapsed ? 'chevron-right' : 'chevron-left');
                         lucide.createIcons();
                     }
                 });
