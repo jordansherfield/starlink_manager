@@ -286,7 +286,7 @@
                                         <details style="background: rgba(0, 0, 0, 0.20); border: 1px dashed var(--color-border); border-radius: 4px; padding: 0.35rem 0.5rem;">
                                             <summary style="cursor: pointer; font-size: 0.7rem; font-weight: 600; color: var(--color-primary); outline: none; list-style: none; display: flex; align-items: center; gap: 0.2rem;">
                                                 <i data-lucide="history" style="width: 12px; height: 12px;"></i> 
-                                                <span>History ({{ sl.email_history|length }} entries)</span>
+                                                <span>History ({{ sl.history_count }} entries)</span>
                                             </summary>
                                             <div style="margin-top: 0.35rem; font-size: 0.65rem; display: flex; flex-direction: column; gap: 0.25rem; max-height: 100px; overflow-y: auto; padding-right: 0.15rem;">
                                                 {% for log in sl.email_history %}
@@ -306,6 +306,9 @@
                                                 {% empty %}
                                                     <div style="color: var(--color-text-muted); font-style: italic;">No changes logged.</div>
                                                 {% endfor %}
+                                                {% if sl.history_count > sl.email_history|length %}
+                                                    <a href="{% if sl.client_id %}{% url 'client_detail' sl.client_id %}{% else %}{% url 'audit_logs_page' %}?q={{ sl.kit_number|urlencode }}{% endif %}" style="color: var(--color-primary);">Latest {{ sl.email_history|length }} shown - see all {{ sl.history_count }}</a>
+                                                {% endif %}
                                             </div>
                                         </details>
                                     </div>
@@ -495,7 +498,7 @@
                             <details style="background: rgba(0, 0, 0, 0.20); border: 1px dashed var(--color-border); border-radius: 4px; padding: 0.35rem 0.5rem;">
                                 <summary style="cursor: pointer; font-size: 0.7rem; font-weight: 600; color: var(--color-primary); outline: none; list-style: none; display: flex; align-items: center; gap: 0.2rem;">
                                     <i data-lucide="history" style="width: 12px; height: 12px;"></i> 
-                                    <span>History ({{ sl.email_history|length }} entries)</span>
+                                    <span>History ({{ sl.history_count }} entries)</span>
                                 </summary>
                                 <div style="margin-top: 0.35rem; font-size: 0.65rem; display: flex; flex-direction: column; gap: 0.25rem; max-height: 100px; overflow-y: auto; padding-right: 0.15rem;">
                                     {% for log in sl.email_history %}
@@ -515,6 +518,9 @@
                                     {% empty %}
                                         <div style="color: var(--color-text-muted); font-style: italic;">No changes logged.</div>
                                     {% endfor %}
+                                    {% if sl.history_count > sl.email_history|length %}
+                                        <a href="{% if sl.client_id %}{% url 'client_detail' sl.client_id %}{% else %}{% url 'audit_logs_page' %}?q={{ sl.kit_number|urlencode }}{% endif %}" style="color: var(--color-primary);">Latest {{ sl.email_history|length }} shown - see all {{ sl.history_count }}</a>
+                                    {% endif %}
                                 </div>
                             </details>
                         </div>
@@ -1231,7 +1237,10 @@
 
         // Auto-open a modal when arriving here via the topbar's "Add New Client" /
         // "Add Unassigned Kit" buttons from another page (see goToDashboardAndOpen in base.html).
-        const openParam = new URLSearchParams(window.location.search).get('open');
+        // Uses the URL hash (#add-client / #add-starlink) - hashes aren't sent to the server, so the
+        // host's firewall (which blocks "?open=" queries) can't interfere. ?open= is still read for old links.
+        const hashMatch = window.location.hash.match(/^#add-(client|starlink)$/);
+        const openParam = hashMatch ? hashMatch[1] : new URLSearchParams(window.location.search).get('open');
         if (openParam === 'client') {
             openModal('addClientModal');
         } else if (openParam === 'starlink') {

@@ -698,3 +698,49 @@ class SharedLoginTests(TestCase):
         self.assertEqual(StarlinkDevice.objects.count(), 1)
         self.assertEqual(StarlinkAccount.objects.get().credentials.count(), 2)
         self.assertEqual(summary.skipped_duplicate, 0)
+
+
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class DashboardSpeedTests(TestCase):
+    def setUp(self):
+        set_current_user(None)
+        self.user = User.objects.create_user('staff', password='pw')
+        self.client.force_login(self.user)
+
+    def make_units(self, n, start=0):
+        from .models import AuditLog
+        owner = Client.objects.create(name=f'Client {start}')
+        account = StarlinkAccount.objects.create(account_number=f'ACC-{start}', client=owner)
+        for i in range(start, start + n):
+            d = StarlinkDevice.objects.create(kit_number=f'KIT40000{i:04d}', location_name='X', client=owner,
+                                              account=account)
+            AuditLog.objects.bulk_create([AuditLog(action='UPDATE', model_name='StarlinkDevice', object_id=d.pk,
+                                                   object_repr='x', kit_number=d.kit_number,
+                                                   changes={'notes': [str(j), str(j + 1)]}) for j in range(12)])
+
+    def test_query_count_does_not_grow_with_units(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        self.make_units(3)
+        self.client.get(reverse('dashboard'))
+        with CaptureQueriesContext(connection) as small:
+            self.client.get(reverse('dashboard'))
+        self.make_units(12, start=100)
+        with CaptureQueriesContext(connection) as large:
+            self.client.get(reverse('dashboard'))
+        self.assertEqual(len(small.captured_queries), len(large.captured_queries))
+
+    def test_dashboard_shows_latest_history_with_link_to_the_rest(self):
+        self.make_units(1)
+        res = self.client.get(reverse('dashboard'))
+        self.assertContains(res, 'History (13 entries)')            # 12 updates + the CREATE
+        self.assertContains(res, 'Latest 5 shown - see all 13')
+
+    def test_client_page_keeps_full_history(self):
+        self.make_units(1)
+        owner = Client.objects.get()
+        res = self.client.get(reverse('client_detail', args=[owner.id]))
+        self.assertContains(res, '(13 entries)')

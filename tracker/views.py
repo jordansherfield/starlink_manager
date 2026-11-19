@@ -12,6 +12,34 @@ from django.views.decorators.http import require_POST
 from .models import StarlinkAccount, Client, Credential, StarlinkDevice, AuditLog, ServicePlan
 from .csv_import import run_import, export_csv
 
+DASHBOARD_HISTORY_LIMIT = 5
+
+
+def _attach_kit_history(devices, limit=None):
+    """Give each device its audit history (newest first) using ONE query for all of them.
+    Sets .email_history (the latest `limit` entries, or all) and .history_count.
+    Empty fields are left out of "created" entries so they stay short."""
+    devices = list(devices)
+    by_kit = {}
+    kits = {d.kit_number for d in devices}
+    if kits:
+        for log in (AuditLog.objects.filter(kit_number__in=kits)
+                    .select_related('user').order_by('-timestamp')):
+            entries = by_kit.setdefault(log.kit_number, [])
+            if limit and len(entries) >= limit:
+                entries.append(None)            # counted, not shown
+                continue
+            if log.action == 'CREATE' and isinstance(log.changes, dict):
+                log.changes = {k: v for k, v in log.changes.items()
+                               if not (isinstance(v, list) and len(v) == 2 and v[1] in (None, '', 'None'))}
+            entries.append(log)
+    for d in devices:
+        entries = by_kit.get(d.kit_number, [])
+        d.history_count = len(entries)
+        d.email_history = [e for e in entries if e is not None]
+    return devices
+
+
 @login_required
 def dashboard(request):
     query = request.GET.get('q', '').strip()
@@ -33,7 +61,7 @@ def dashboard(request):
         Prefetch('accounts', queryset=active_accounts_qs),
     )
     unassigned_starlinks = StarlinkDevice.objects.filter(client__isnull=True, is_archived=False).select_related('account')
-    accounts = StarlinkAccount.objects.filter(is_archived=False).prefetch_related(
+    accounts = StarlinkAccount.objects.filter(is_archived=False).select_related('client').prefetch_related(
         Prefetch('credentials', queryset=active_credentials_qs),
         Prefetch('starlinks', queryset=StarlinkDevice.objects.filter(is_archived=False).select_related('client')),
     )
@@ -107,8 +135,11 @@ def dashboard(request):
                 
     for acc in accounts:
         acc.margin = acc.client_invoice - acc.cost_to_us
-        # Combine direct client and client linked via starlinks
-        associated_clients = list(Client.objects.filter(starlinks__account=acc, starlinks__is_archived=False).distinct())
+        # Combine direct client and client linked via starlinks (from the prefetched units - no extra queries)
+        associated_clients = []
+        for sl in acc.starlinks.all():
+            if sl.client and sl.client not in associated_clients:
+                associated_clients.append(sl.client)
         if acc.client and acc.client not in associated_clients:
             associated_clients.append(acc.client)
         acc.associated_clients = associated_clients
@@ -127,14 +158,15 @@ def dashboard(request):
 
         # Account links via the client's hardware devices
         for sl in client.starlinks.all():
-            sl.email_history = AuditLog.objects.filter(kit_number=sl.kit_number).order_by('-timestamp')
             if sl.account and not sl.account.is_archived and sl.account.id not in seen_accs:
                 seen_accs.add(sl.account.id)
                 associated_accounts.append(sl.account)
         client.associated_accounts = associated_accounts
 
-    for sl in unassigned_starlinks:
-        sl.email_history = AuditLog.objects.filter(kit_number=sl.kit_number).order_by('-timestamp')
+    # Kit history: latest few entries per unit, all fetched in one query (full history is on the client page)
+    unassigned_starlinks = list(unassigned_starlinks)
+    _attach_kit_history([sl for client in clients for sl in client.starlinks.all()] + unassigned_starlinks,
+                        limit=DASHBOARD_HISTORY_LIMIT)
 
     context = {
         'clients': clients,
@@ -799,8 +831,8 @@ def client_detail(request, pk):
             associated_accounts.append(acc)
             
     # 2. Account links via devices
+    _attach_kit_history(client.starlinks.all())
     for sl in client.starlinks.all():
-        sl.email_history = AuditLog.objects.filter(kit_number=sl.kit_number).order_by('-timestamp')
         if sl.account and not sl.account.is_archived and sl.account.id not in seen_accs:
             seen_accs.add(sl.account.id)
             sl.account.margin = sl.account.client_invoice - sl.account.cost_to_us

@@ -406,7 +406,9 @@
                 openModal('addClientModal');
                 return;
             }
-            window.location.href = "{% url 'dashboard' %}?open=" + kind;
+            // Passed after "#" so it never reaches the server: the host's firewall rejects
+            // any URL with an "open=" query parameter (403 Forbidden).
+            window.location.href = "{% url 'dashboard' %}#add-" + kind;
         }
 
         function closeModal(id) {
